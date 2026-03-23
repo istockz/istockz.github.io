@@ -355,8 +355,38 @@ tbody td:nth-child(2) {{
     .filter-bar {{ flex-direction: column; align-items: stretch; }}
     .filter-group {{ flex-wrap: wrap; }}
     .filter-divider {{ display: none; }}
-    thead th {{ font-size: 10px; padding: 8px 6px; }}
-    tbody td {{ padding: 8px 6px; font-size: 12px; }}
+    .pagination {{ display: none; }}
+
+    /* Table: show only Symbol, Company, Close, Chg% on mobile */
+    table {{ table-layout: auto; }}
+    colgroup {{ display: none; }}
+    /* Hide: Sector(3), Cap(4), Exch(5), Open(6), High(7), Low(8), Change(11), Volume(12) */
+    thead th:nth-child(3),
+    thead th:nth-child(4),
+    thead th:nth-child(5),
+    thead th:nth-child(6),
+    thead th:nth-child(7),
+    thead th:nth-child(8),
+    thead th:nth-child(11),
+    thead th:nth-child(12),
+    tbody td:nth-child(3),
+    tbody td:nth-child(4),
+    tbody td:nth-child(5),
+    tbody td:nth-child(6),
+    tbody td:nth-child(7),
+    tbody td:nth-child(8),
+    tbody td:nth-child(11),
+    tbody td:nth-child(12) {{
+        display: none !important;
+    }}
+    thead th {{ font-size: 11px; padding: 10px 8px; }}
+    tbody td {{ padding: 10px 8px; font-size: 13px; }}
+    tbody td:nth-child(2) {{ max-width: 120px; }}
+    .table-container {{ padding: 0 12px; }}
+    .controls {{ padding: 0 12px; }}
+    .global-filters {{ padding: 0 12px; }}
+    .stats-bar {{ padding: 12px; }}
+    .movers-section {{ padding: 0 12px; }}
 }}
 </style>
 </head>
@@ -521,6 +551,8 @@ let globalFiltered = [...ALL_STOCKS];   // After sector/cap/exchange dropdown
 let filteredData   = [...ALL_STOCKS];   // After search + price filter too
 let currentPage = 1;
 const PAGE_SIZE = 50;
+let isLoadingMore = false;
+let isMobile = window.innerWidth <= 768;
 let sortCol = 'symbol';
 let sortDir = 'asc';
 let priceFilter = 'all'; // all | gainers | losers
@@ -537,6 +569,23 @@ document.addEventListener('DOMContentLoaded', () => {{
     populateDropdowns();
     applyGlobalFilter();
     document.getElementById('search').addEventListener('input', () => {{ currentPage = 1; applyLocalFilters(); }});
+
+    // Infinite scroll for mobile
+    window.addEventListener('scroll', () => {{
+        if (!isMobile || isLoadingMore) return;
+        const scrollBottom = window.innerHeight + window.scrollY;
+        const docHeight = document.documentElement.scrollHeight;
+        if (scrollBottom >= docHeight - 300) {{
+            const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+            if (currentPage < totalPages) {{
+                isLoadingMore = true;
+                currentPage++;
+                appendTablePage();
+                isLoadingMore = false;
+            }}
+        }}
+    }});
+    window.addEventListener('resize', () => {{ isMobile = window.innerWidth <= 768; }});
 }});
 
 // ==========================================
@@ -735,10 +784,37 @@ function applySort() {{
 // ==========================================
 // TABLE
 // ==========================================
-function renderTable() {{
+function appendTablePage() {{
     const start = (currentPage - 1) * PAGE_SIZE;
     const pageData = filteredData.slice(start, start + PAGE_SIZE);
     const tbody = document.getElementById('stock-table');
+    const totalShown = Math.min(currentPage * PAGE_SIZE, filteredData.length);
+    document.getElementById('result-count').textContent =
+        `Showing 1-${{totalShown}} of ${{filteredData.length.toLocaleString()}}`;
+    tbody.insertAdjacentHTML('beforeend', pageData.map(s => rowHTML(s)).join(''));
+}}
+
+function renderTable() {{
+    const tbody = document.getElementById('stock-table');
+
+    if (isMobile) {{
+        // Mobile: render first page, rest loaded via scroll
+        currentPage = 1;
+        const pageData = filteredData.slice(0, PAGE_SIZE);
+        const totalShown = Math.min(PAGE_SIZE, filteredData.length);
+        document.getElementById('result-count').textContent =
+            `Showing 1-${{totalShown}} of ${{filteredData.length.toLocaleString()}}`;
+        if (pageData.length === 0) {{
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-muted)">No stocks found</td></tr>';
+            return;
+        }}
+        tbody.innerHTML = pageData.map(s => rowHTML(s)).join('');
+        return;
+    }}
+
+    // Desktop: paginated
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageData = filteredData.slice(start, start + PAGE_SIZE);
 
     document.getElementById('result-count').textContent =
         `Showing ${{Math.min(start + 1, filteredData.length)}}-${{Math.min(start + PAGE_SIZE, filteredData.length)}} of ${{filteredData.length.toLocaleString()}}`;
@@ -748,33 +824,35 @@ function renderTable() {{
         return;
     }}
 
-    tbody.innerHTML = pageData.map(s => {{
-        const cls = s.change_pct >= 0 ? 'positive' : 'negative';
-        const sign = s.change_pct >= 0 ? '+' : '';
-        const sym = s.symbol.replace('.NS','').replace('.BO','');
-        const exchBadge = s.exchange === 'NSE+BSE'
-            ? '<span style="color:var(--blue)">NSE</span>+<span style="color:var(--orange)">BSE</span>'
-            : s.exchange === 'NSE' ? '<span style="color:var(--blue)">NSE</span>'
-            : '<span style="color:var(--orange)">BSE</span>';
-        const capCls = s.market_cap_cat === 'Large Cap' ? 'cap-large'
-            : s.market_cap_cat === 'Mid Cap' ? 'cap-mid'
-            : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
-        const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
-        return `<tr>
-            <td>${{sym}}</td>
-            <td>${{s.name || sym}}</td>
-            <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
-            <td style="text-align:center"><span class="cap-badge ${{capCls}}">${{capLabel}}</span></td>
-            <td style="text-align:center;font-family:sans-serif;font-size:11px">${{exchBadge}}</td>
-            <td>${{fmt(s.open)}}</td>
-            <td>${{fmt(s.high)}}</td>
-            <td>${{fmt(s.low)}}</td>
-            <td>${{fmt(s.close)}}</td>
-            <td><span class="change-cell ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span></td>
-            <td class="${{cls}}">${{sign}}${{fmt(s.change_abs)}}</td>
-            <td>${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</td>
-        </tr>`;
-    }}).join('');
+    tbody.innerHTML = pageData.map(s => rowHTML(s)).join('');
+}}
+
+function rowHTML(s) {{
+    const cls = s.change_pct >= 0 ? 'positive' : 'negative';
+    const sign = s.change_pct >= 0 ? '+' : '';
+    const sym = s.symbol.replace('.NS','').replace('.BO','');
+    const exchBadge = s.exchange === 'NSE+BSE'
+        ? '<span style="color:var(--blue)">NSE</span>+<span style="color:var(--orange)">BSE</span>'
+        : s.exchange === 'NSE' ? '<span style="color:var(--blue)">NSE</span>'
+        : '<span style="color:var(--orange)">BSE</span>';
+    const capCls = s.market_cap_cat === 'Large Cap' ? 'cap-large'
+        : s.market_cap_cat === 'Mid Cap' ? 'cap-mid'
+        : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
+    const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
+    return `<tr>
+        <td>${{sym}}</td>
+        <td>${{s.name || sym}}</td>
+        <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
+        <td style="text-align:center"><span class="cap-badge ${{capCls}}">${{capLabel}}</span></td>
+        <td style="text-align:center;font-family:sans-serif;font-size:11px">${{exchBadge}}</td>
+        <td>${{fmt(s.open)}}</td>
+        <td>${{fmt(s.high)}}</td>
+        <td>${{fmt(s.low)}}</td>
+        <td>${{fmt(s.close)}}</td>
+        <td><span class="change-cell ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span></td>
+        <td class="${{cls}}">${{sign}}${{fmt(s.change_abs)}}</td>
+        <td>${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</td>
+    </tr>`;
 }}
 
 function fmt(n) {{
