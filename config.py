@@ -11,6 +11,7 @@ REPORT_JSON = os.path.join(BASE_DIR, "report.json")
 REPORT_CSV = os.path.join(BASE_DIR, "report.csv")
 CHART_DIR = os.path.join(BASE_DIR, "charts")
 SITE_OUTPUT = os.path.join(BASE_DIR, "index.html")
+DATA_DIR = os.path.join(BASE_DIR, "data")  # Per-stock chart data JSON files
 NSE_SYMBOLS_CACHE = os.path.join(BASE_DIR, "nse_symbols_cache.csv")
 
 # Data settings

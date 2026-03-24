@@ -5,10 +5,60 @@ pagination, and GLOBAL sector/market-cap/exchange filters that affect
 the ticker tape, stats cards, top movers, and the data table.
 """
 import json
+import os
 from datetime import datetime
-from config import SITE_OUTPUT
+from config import SITE_OUTPUT, DATA_DIR
 from db import get_latest_prices, get_stock_count, get_stock_info_map
 from nse_symbols import get_symbol_name_map, get_symbol_exchange_map
+
+
+def generate_chart_data():
+    """Generate individual JSON files with OHLCV data for each stock's chart."""
+    from db import get_connection
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    conn = get_connection()
+    cursor = conn.execute(
+        "SELECT symbol, date, open, high, low, close, volume "
+        "FROM eod_prices ORDER BY symbol, date"
+    )
+
+    current_symbol = None
+    current_data = []
+    file_count = 0
+
+    for row in cursor:
+        symbol, date, o, h, l, c, v = row
+        if symbol != current_symbol:
+            # Write previous symbol's data
+            if current_symbol and current_data:
+                safe_name = current_symbol.replace(".", "_")
+                filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
+                with open(filepath, "w") as f:
+                    json.dump(current_data, f, separators=(",", ":"))
+                file_count += 1
+            current_symbol = symbol
+            current_data = []
+        current_data.append([
+            date,
+            round(o, 2) if o else 0,
+            round(h, 2) if h else 0,
+            round(l, 2) if l else 0,
+            round(c, 2) if c else 0,
+            int(v) if v else 0,
+        ])
+
+    # Write the last symbol
+    if current_symbol and current_data:
+        safe_name = current_symbol.replace(".", "_")
+        filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
+        with open(filepath, "w") as f:
+            json.dump(current_data, f, separators=(",", ":"))
+        file_count += 1
+
+    conn.close()
+    print(f"[SITE] Generated {file_count} chart data files in {DATA_DIR}")
 
 
 def generate_website():
@@ -17,6 +67,9 @@ def generate_website():
     if not prices:
         print("[SITE] No price data in database. Fetch data first.")
         return
+
+    # Generate individual stock chart data files
+    generate_chart_data()
 
     # Enrich with company names, exchange, and sector info
     name_map = get_symbol_name_map()
@@ -388,7 +441,51 @@ tbody td:nth-child(2) {{
     .stats-bar {{ padding: 12px; }}
     .movers-section {{ padding: 0 12px; }}
 }}
+
+/* Chart Modal */
+.chart-modal {{
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+}}
+.chart-modal-content {{
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 12px; width: 92vw; max-width: 960px;
+    max-height: 90vh; overflow: hidden;
+}}
+.chart-header {{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+}}
+.chart-symbol {{
+    font-size: 18px; font-weight: 700; color: var(--blue);
+    font-family: 'SF Mono','Consolas',monospace;
+}}
+.chart-name {{ color: var(--text-secondary); font-size: 14px; margin-left: 12px; }}
+.chart-close {{
+    background: none; border: none; color: var(--text-muted);
+    font-size: 28px; cursor: pointer; padding: 0 8px; transition: color 0.2s;
+}}
+.chart-close:hover {{ color: var(--red); }}
+.chart-container {{ height: 420px; padding: 8px; }}
+.chart-legend {{
+    padding: 10px 20px; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--text-secondary);
+    font-family: 'SF Mono','Consolas',monospace;
+}}
+.chart-loading {{
+    display: flex; align-items: center; justify-content: center;
+    height: 420px; color: var(--text-muted); font-size: 14px;
+}}
+@media (max-width: 768px) {{
+    .chart-modal-content {{ width: 98vw; border-radius: 8px; }}
+    .chart-container {{ height: 300px; }}
+    .chart-loading {{ height: 300px; }}
+    .chart-symbol {{ font-size: 15px; }}
+    .chart-name {{ font-size: 12px; }}
+}}
 </style>
+<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
@@ -529,6 +626,21 @@ tbody td:nth-child(2) {{
 
 <!-- Pagination -->
 <div class="pagination" id="pagination"></div>
+
+<!-- Chart Modal -->
+<div class="chart-modal" id="chart-modal" style="display:none">
+    <div class="chart-modal-content">
+        <div class="chart-header">
+            <div>
+                <span class="chart-symbol" id="chart-symbol"></span>
+                <span class="chart-name" id="chart-name"></span>
+            </div>
+            <button class="chart-close" id="chart-close" onclick="closeChart()">&times;</button>
+        </div>
+        <div class="chart-container" id="chart-container"></div>
+        <div class="chart-legend" id="chart-legend"></div>
+    </div>
+</div>
 
 <!-- Footer -->
 <div class="footer">
@@ -839,8 +951,9 @@ function rowHTML(s) {{
         : s.market_cap_cat === 'Mid Cap' ? 'cap-mid'
         : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
     const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
+    const safeName = (s.name || sym).replace(/'/g, "\\'");
     return `<tr>
-        <td>${{sym}}</td>
+        <td style="cursor:pointer" onclick="openChart('${{s.symbol}}','${{safeName}}')">${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
         <td>${{s.name || sym}}</td>
         <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
         <td style="text-align:center"><span class="cap-badge ${{capCls}}">${{capLabel}}</span></td>
@@ -893,6 +1006,160 @@ function goPage(p) {{
     renderPagination();
     window.scrollTo({{ top: document.querySelector('.controls').offsetTop - 80, behavior: 'smooth' }});
 }}
+
+// ==========================================
+// CHART MODAL
+// ==========================================
+let chartInstance = null;
+
+function openChart(symbol, name) {{
+    const modal = document.getElementById('chart-modal');
+    const container = document.getElementById('chart-container');
+    const symbolEl = document.getElementById('chart-symbol');
+    const nameEl = document.getElementById('chart-name');
+    const legendEl = document.getElementById('chart-legend');
+
+    // Show modal with loading state
+    modal.style.display = 'flex';
+    symbolEl.textContent = symbol.replace('.NS','').replace('.BO','');
+    nameEl.textContent = name;
+    container.innerHTML = '<div class="chart-loading">Loading chart data...</div>';
+    legendEl.textContent = '';
+    document.body.style.overflow = 'hidden';
+
+    // Build JSON file path (dots replaced with underscores)
+    // Try primary symbol first, then fallback to alternate exchange
+    const safeSymbol = symbol.replace(/\\./g, '_');
+    const dataUrl = 'data/' + safeSymbol + '.json';
+
+    // Alternate: if .BO fails try .NS, and vice versa
+    let altSymbol = symbol.endsWith('.BO') ? symbol.replace('.BO', '.NS') : symbol.replace('.NS', '.BO');
+    const altUrl = 'data/' + altSymbol.replace(/\\./g, '_') + '.json';
+
+    fetch(dataUrl)
+        .then(r => {{
+            if (!r.ok) return fetch(altUrl);
+            return r;
+        }})
+        .then(r => {{
+            if (!r.ok) throw new Error('Data not found');
+            return r.json();
+        }})
+        .then(data => renderChart(data, container, legendEl))
+        .catch(err => {{
+            container.innerHTML = '<div class="chart-loading">Chart data not available for this stock</div>';
+        }});
+}}
+
+function renderChart(data, container, legendEl) {{
+    container.innerHTML = '';
+
+    // Destroy previous chart
+    if (chartInstance) {{
+        chartInstance.remove();
+        chartInstance = null;
+    }}
+
+    chartInstance = LightweightCharts.createChart(container, {{
+        layout: {{
+            background: {{ color: '#161b22' }},
+            textColor: '#8b949e',
+        }},
+        grid: {{
+            vertLines: {{ color: '#21262d' }},
+            horzLines: {{ color: '#21262d' }},
+        }},
+        crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
+        rightPriceScale: {{ borderColor: '#30363d' }},
+        timeScale: {{ borderColor: '#30363d', timeVisible: false }},
+        width: container.clientWidth,
+        height: container.clientHeight,
+    }});
+
+    // Candlestick series
+    const candleSeries = chartInstance.addCandlestickSeries({{
+        upColor: '#26a641',
+        downColor: '#f85149',
+        borderUpColor: '#26a641',
+        borderDownColor: '#f85149',
+        wickUpColor: '#26a641',
+        wickDownColor: '#f85149',
+    }});
+
+    const candleData = data.map(d => ({{
+        time: d[0],
+        open: d[1],
+        high: d[2],
+        low: d[3],
+        close: d[4],
+    }}));
+    candleSeries.setData(candleData);
+
+    // Volume histogram
+    const volumeSeries = chartInstance.addHistogramSeries({{
+        priceFormat: {{ type: 'volume' }},
+        priceScaleId: '',
+    }});
+    volumeSeries.priceScale().applyOptions({{
+        scaleMargins: {{ top: 0.8, bottom: 0 }},
+    }});
+    const volData = data.map(d => ({{
+        time: d[0],
+        value: d[5],
+        color: d[4] >= d[1] ? 'rgba(38,166,65,0.3)' : 'rgba(248,81,73,0.3)',
+    }}));
+    volumeSeries.setData(volData);
+
+    // Fit full range
+    chartInstance.timeScale().fitContent();
+
+    // Crosshair hover legend
+    chartInstance.subscribeCrosshairMove(param => {{
+        if (!param || !param.time) {{
+            legendEl.textContent = '';
+            return;
+        }}
+        const candle = param.seriesData.get(candleSeries);
+        if (candle) {{
+            const chg = candle.close - candle.open;
+            const chgPct = ((chg / candle.open) * 100).toFixed(2);
+            const sign = chg >= 0 ? '+' : '';
+            legendEl.textContent = 'O: ' + candle.open.toFixed(2) +
+                '  H: ' + candle.high.toFixed(2) +
+                '  L: ' + candle.low.toFixed(2) +
+                '  C: ' + candle.close.toFixed(2) +
+                '  ' + sign + chgPct + '%';
+        }}
+    }});
+
+    // Responsive resize
+    const ro = new ResizeObserver(() => {{
+        if (chartInstance) {{
+            chartInstance.applyOptions({{
+                width: container.clientWidth,
+                height: container.clientHeight,
+            }});
+        }}
+    }});
+    ro.observe(container);
+}}
+
+function closeChart() {{
+    document.getElementById('chart-modal').style.display = 'none';
+    document.body.style.overflow = '';
+    if (chartInstance) {{
+        chartInstance.remove();
+        chartInstance = null;
+    }}
+}}
+
+// Close on backdrop click or Escape
+document.getElementById('chart-modal').addEventListener('click', e => {{
+    if (e.target.id === 'chart-modal') closeChart();
+}});
+document.addEventListener('keydown', e => {{
+    if (e.key === 'Escape') closeChart();
+}});
 </script>
 </body>
 </html>"""
