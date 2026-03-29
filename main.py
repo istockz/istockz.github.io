@@ -178,8 +178,13 @@ def run_website_pipeline(skip_fetch: bool = False, refresh_symbols: bool = False
         from fetch_stock_info import fetch_and_store_info
         fetch_and_store_info()
 
-    # Step 4: Generate website
-    print_section("STEP 4: Generating website")
+    # Step 4: Fetch global and Indian market indices
+    print_section("STEP 4: Fetching market indices")
+    from fetch_indices import fetch_and_save as fetch_indices
+    fetch_indices()
+
+    # Step 5: Generate website
+    print_section("STEP 5: Generating website")
     generate_website()
 
     # Open in browser

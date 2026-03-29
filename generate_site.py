@@ -1170,6 +1170,10 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
             <span>All Stocks</span>
             <span class="nav-count" id="nav-count-all"></span>
         </div>
+        <div class="nav-item" onclick="openIndicesPanel()" style="color:#58a6ff;font-weight:600;">
+            <span>Market Indices</span>
+            <span style="font-size:11px;color:#8b949e;">India + Global</span>
+        </div>
     </div>
     <div class="nav-section" id="nav-cap-section">
         <div class="nav-section-title">Market Cap</div>
@@ -3159,6 +3163,117 @@ document.addEventListener('keydown', e => {{
         if (e.key === 'Escape') closeChart();
     }}
 }});
+// ==========================================
+// INDICES PANEL
+// ==========================================
+function openIndicesPanel() {{
+    closeNavMenu();
+    const overlay = document.getElementById('indices-overlay');
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Load indices data
+    fetch('data/indices.json')
+        .then(r => r.ok ? r.json() : Promise.reject('Not found'))
+        .then(data => renderIndicesPanel(data))
+        .catch(() => {{
+            document.getElementById('indices-content').innerHTML =
+                '<div style="text-align:center;color:#8b949e;padding:40px;">Indices data not available. Run python main.py to fetch.</div>';
+        }});
+}}
+
+function closeIndicesPanel() {{
+    document.getElementById('indices-overlay').style.display = 'none';
+    document.body.style.overflow = '';
+}}
+
+function renderIndicesPanel(data) {{
+    const container = document.getElementById('indices-content');
+    let html = '';
+
+    for (const [region, indices] of Object.entries(data)) {{
+        html += `<div class="idx-region">`;
+        html += `<div class="idx-region-title">${{region}}</div>`;
+        html += `<div class="idx-grid">`;
+
+        for (const idx of indices) {{
+            const isUp = idx.change_pct >= 0;
+            const arrow = isUp ? '\u25b2' : '\u25bc';
+            const cls = isUp ? 'green' : 'red';
+            const sign = isUp ? '+' : '';
+
+            html += `<div class="idx-card">
+                <div class="idx-name">${{idx.name}}</div>
+                <div class="idx-price">${{idx.close.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</div>
+                <div class="idx-change ${{cls}}">
+                    ${{arrow}} ${{sign}}${{idx.change.toFixed(2)}}
+                    <span class="idx-pct ${{cls}}">${{sign}}${{idx.change_pct.toFixed(2)}}%</span>
+                </div>
+                <div class="idx-meta">
+                    <span>O: ${{idx.open.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+                    <span>H: ${{idx.high.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+                    <span>L: ${{idx.low.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+                </div>
+                <div class="idx-date">${{idx.date}}</div>
+            </div>`;
+        }}
+
+        html += `</div></div>`;
+    }}
+
+    container.innerHTML = html;
+}}
 </script>
+
+<!-- Indices Overlay Panel -->
+<div id="indices-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#0d1117;z-index:10002;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #30363d;">
+        <div style="display:flex;align-items:center;gap:16px;">
+            <button onclick="closeIndicesPanel()" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">&larr; Back</button>
+            <h2 style="margin:0;color:#58a6ff;font-size:20px;font-weight:700;">Market Indices</h2>
+            <span style="color:#8b949e;font-size:13px;">India + Global</span>
+        </div>
+    </div>
+    <div id="indices-content" style="flex:1;overflow-y:auto;padding:20px 24px;">
+        <div style="text-align:center;color:#8b949e;padding:40px;">Loading indices...</div>
+    </div>
+</div>
+
+<style>
+.idx-region {{ margin-bottom: 28px; }}
+.idx-region-title {{
+    font-size: 14px; font-weight: 700; color: #58a6ff; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid #21262d;
+}}
+.idx-grid {{
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}}
+.idx-card {{
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 16px; transition: all 0.2s;
+}}
+.idx-card:hover {{ border-color: #58a6ff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }}
+.idx-name {{ font-size: 13px; color: #8b949e; font-weight: 600; margin-bottom: 6px; }}
+.idx-price {{ font-size: 22px; font-weight: 700; color: #e6edf3; margin-bottom: 4px; }}
+.idx-change {{ font-size: 14px; font-weight: 600; margin-bottom: 8px; }}
+.idx-change.green {{ color: #26a641; }}
+.idx-change.red {{ color: #f85149; }}
+.idx-pct {{
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 12px; font-weight: 700; margin-left: 6px;
+}}
+.idx-pct.green {{ background: rgba(38,166,65,0.15); }}
+.idx-pct.red {{ background: rgba(248,81,73,0.15); }}
+.idx-meta {{ font-size: 11px; color: #484f58; display: flex; gap: 8px; margin-bottom: 4px; }}
+.idx-date {{ font-size: 10px; color: #30363d; }}
+
+@media (max-width: 768px) {{
+    .idx-grid {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
+    .idx-card {{ padding: 12px; }}
+    .idx-price {{ font-size: 18px; }}
+}}
+</style>
 </body>
 </html>"""
