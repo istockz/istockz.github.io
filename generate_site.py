@@ -932,10 +932,10 @@ tbody td:nth-child(2) {{
     flex: 1; overflow-y: auto;
 }}
 .detail-chart-pane {{
-    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    flex: 1; display: flex; flex-direction: column; min-width: 0; padding-right: 8px;
 }}
 .detail-chart-container {{
-    flex: 1; min-height: 0;
+    flex: 1; min-height: 0; overflow: hidden;
 }}
 .detail-chart-legend {{
     padding: 8px 16px; font-size: 12px; color: var(--text-secondary);
