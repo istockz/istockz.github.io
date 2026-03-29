@@ -1084,7 +1084,7 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
         <input type="text" placeholder="&#128269; Search..." oninput="tickerSearch(this.value, 'fs')" onfocus="tickerSearch(this.value, 'fs')" autocomplete="off" />
         <div class="ticker-search-results" id="fs-ticker-results"></div>
     </div>
-    <div style="overflow:hidden;width:100%;height:100%;">
+    <div style="overflow:hidden;width:100%;">
         <div class="ticker-overlay-track" id="fs-ticker-track"></div>
     </div>
     <div class="fs-stock-backdrop" id="fs-stock-backdrop" onclick="closeFsStockPanel()"></div>
