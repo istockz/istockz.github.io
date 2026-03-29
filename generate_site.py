@@ -8,15 +8,18 @@ import json
 import os
 from datetime import datetime
 from config import SITE_OUTPUT, DATA_DIR
-from db import get_latest_prices, get_stock_count, get_stock_info_map
+from db import get_latest_prices, get_stock_count, get_stock_info_map, get_all_fundamentals_map
 from nse_symbols import get_symbol_name_map, get_symbol_exchange_map
 
 
 def generate_chart_data():
-    """Generate individual JSON files with OHLCV data for each stock's chart."""
+    """Generate individual JSON files with OHLCV data + fundamentals for each stock."""
     from db import get_connection
 
     os.makedirs(DATA_DIR, exist_ok=True)
+
+    # Load all fundamentals
+    fund_map = get_all_fundamentals_map()
 
     conn = get_connection()
     cursor = conn.execute(
@@ -28,15 +31,45 @@ def generate_chart_data():
     current_data = []
     file_count = 0
 
+    # Fields to include in the JSON (skip huge text fields for file size)
+    FUND_KEYS = [
+        "long_name", "website", "city", "full_time_employees",
+        "trailing_pe", "forward_pe", "price_to_book", "book_value",
+        "eps_trailing", "eps_forward", "dividend_rate", "dividend_yield",
+        "payout_ratio", "five_yr_avg_div_yield", "revenue",
+        "revenue_per_share", "revenue_growth", "ebitda", "ebitda_margins",
+        "gross_margins", "operating_margins", "profit_margins",
+        "net_income", "total_cash", "total_cash_per_share", "total_debt",
+        "debt_to_equity", "current_ratio", "free_cashflow",
+        "return_on_equity", "enterprise_value", "enterprise_to_ebitda",
+        "enterprise_to_revenue", "earnings_growth", "shares_outstanding",
+        "float_shares", "held_pct_insiders", "held_pct_institutions",
+        "beta", "fifty_two_week_high", "fifty_two_week_low",
+        "fifty_day_average", "two_hundred_day_avg", "target_high_price",
+        "target_low_price", "target_mean_price", "recommendation",
+        "num_analyst_opinions", "all_time_high", "all_time_low",
+        "long_business_summary",
+    ]
+
+    def write_stock_file(symbol, ohlcv_data):
+        safe_name = symbol.replace(".", "_")
+        filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
+        # Build output: { "ohlcv": [...], "fundamentals": {...} }
+        fund = fund_map.get(symbol, {})
+        fund_out = {}
+        for k in FUND_KEYS:
+            v = fund.get(k)
+            if v is not None:
+                fund_out[k] = v
+        output = {"ohlcv": ohlcv_data, "fundamentals": fund_out}
+        with open(filepath, "w") as f:
+            json.dump(output, f, separators=(",", ":"))
+
     for row in cursor:
         symbol, date, o, h, l, c, v = row
         if symbol != current_symbol:
-            # Write previous symbol's data
             if current_symbol and current_data:
-                safe_name = current_symbol.replace(".", "_")
-                filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
-                with open(filepath, "w") as f:
-                    json.dump(current_data, f, separators=(",", ":"))
+                write_stock_file(current_symbol, current_data)
                 file_count += 1
             current_symbol = symbol
             current_data = []
@@ -51,10 +84,7 @@ def generate_chart_data():
 
     # Write the last symbol
     if current_symbol and current_data:
-        safe_name = current_symbol.replace(".", "_")
-        filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
-        with open(filepath, "w") as f:
-            json.dump(current_data, f, separators=(",", ":"))
+        write_stock_file(current_symbol, current_data)
         file_count += 1
 
     conn.close()
@@ -536,6 +566,146 @@ tbody td:nth-child(2) {{
     .ticker-item {{ font-size: 11px; padding: 0 12px; height: 36px; }}
 }}
 
+/* Ticker Zoom Button */
+.ticker-zoom {{
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: rgba(22,27,34,0.85); border: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 16px; cursor: pointer;
+    width: 30px; height: 30px; border-radius: 6px; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}}
+.ticker-zoom:hover {{ color: var(--blue); border-color: var(--blue); background: rgba(22,27,34,0.95); }}
+
+/* Ticker Fullscreen Overlay */
+.ticker-overlay {{
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 2000; display: none;
+    flex-direction: column; justify-content: center; align-items: stretch;
+}}
+.ticker-overlay.active {{ display: flex; }}
+.ticker-overlay-close {{
+    position: absolute; top: 20px; right: 24px;
+    background: none; border: none; color: #555; font-size: 32px;
+    cursor: pointer; transition: color 0.2s; z-index: 2001;
+}}
+.ticker-overlay-close:hover {{ color: var(--red); }}
+.ticker-overlay-track {{
+    display: flex; width: max-content;
+    animation: ticker-scroll var(--fs-ticker-duration, 180s) linear infinite;
+}}
+.ticker-overlay-track.paused {{ animation-play-state: paused; }}
+.ticker-overlay .fs-ticker-item {{
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 40px; white-space: nowrap; height: 60px;
+    font-size: 22px; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    border-right: 1px solid #1a1a1a;
+}}
+.ticker-overlay .fs-ticker-symbol {{ color: #e6edf3; font-weight: 700; }}
+.ticker-overlay .fs-ticker-price  {{ color: #8b949e; }}
+.ticker-overlay .fs-ticker-change {{ font-weight: 600; padding: 2px 10px; border-radius: 4px; }}
+.ticker-overlay .fs-ticker-change.up   {{ color: var(--green); background: var(--green-bg); }}
+.ticker-overlay .fs-ticker-change.down {{ color: var(--red);   background: var(--red-bg); }}
+.ticker-overlay .fs-ticker-change.flat {{ color: #555; }}
+.ticker-overlay-paused {{
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+    color: #555; font-size: 14px; letter-spacing: 2px; display: none;
+}}
+.ticker-overlay-paused.visible {{ display: block; }}
+.ticker-overlay-controls {{
+    position: absolute; bottom: 24px; left: 24px;
+    display: flex; gap: 16px; align-items: center;
+}}
+.ticker-overlay-controls .ctrl-group {{
+    display: flex; align-items: center; gap: 6px;
+}}
+.ticker-overlay-controls .ctrl-label {{
+    color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+}}
+.ticker-overlay-controls .ctrl-btn {{
+    background: #1a1a1a; border: 1px solid #333; border-radius: 4px;
+    color: #888; font-size: 16px; width: 28px; height: 28px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; line-height: 1;
+}}
+.ticker-overlay-controls .ctrl-btn:hover {{ color: var(--blue); border-color: var(--blue); }}
+.ticker-overlay-controls .ctrl-val {{
+    color: #666; font-size: 12px; min-width: 30px; text-align: center;
+}}
+.ticker-overlay-hints {{
+    position: absolute; bottom: 30px; right: 24px;
+    color: #333; font-size: 12px;
+}}
+.ticker-overlay-hints kbd {{
+    background: #1a1a1a; border: 1px solid #333; border-radius: 3px;
+    padding: 1px 6px; font-family: inherit; color: #555; margin: 0 2px;
+}}
+/* Ticker Overlay Stock Detail Panel */
+.fs-stock-panel {{
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 12px; width: 92vw; max-width: 800px;
+    max-height: 90vh; overflow-y: auto; z-index: 2010;
+    display: none;
+}}
+.fs-stock-panel.active {{ display: block; }}
+.fs-stock-backdrop {{
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 2005; display: none;
+}}
+.fs-stock-backdrop.active {{ display: block; }}
+.fs-panel-header {{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+}}
+.fs-panel-header .sym {{ font-size: 20px; font-weight: 700; color: var(--blue); }}
+.fs-panel-header .name {{ color: var(--text-secondary); font-size: 14px; margin-left: 12px; }}
+.fs-panel-close {{
+    background: none; border: none; color: var(--text-muted);
+    font-size: 28px; cursor: pointer; padding: 0 8px; transition: color 0.2s;
+}}
+.fs-panel-close:hover {{ color: var(--red); }}
+.fs-panel-chart {{ height: 320px; padding: 8px; }}
+.fs-panel-chart-legend {{
+    padding: 8px 20px; font-size: 12px; color: var(--text-secondary);
+    font-family: 'SF Mono','Consolas',monospace;
+    border-bottom: 1px solid var(--border);
+}}
+.fs-panel-info {{
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px; background: var(--border);
+}}
+.fs-panel-info .info-cell {{
+    background: var(--bg-secondary); padding: 12px 16px;
+}}
+.fs-panel-info .info-label {{
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted); margin-bottom: 4px;
+}}
+.fs-panel-info .info-val {{
+    font-size: 15px; font-weight: 600; color: var(--text-primary);
+}}
+.fs-panel-info .info-val.green {{ color: var(--green); }}
+.fs-panel-info .info-val.red {{ color: var(--red); }}
+.fs-panel-tags {{
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 20px;
+    border-top: 1px solid var(--border);
+}}
+.fs-panel-tag {{
+    font-size: 11px; padding: 4px 10px; border-radius: 4px;
+    background: var(--bg-tertiary); color: var(--text-secondary);
+    border: 1px solid var(--border);
+}}
+
+@media (max-width: 768px) {{
+    .ticker-overlay .fs-ticker-item {{ font-size: 16px; padding: 0 20px; height: 48px; gap: 10px; }}
+    .ticker-zoom {{ width: 26px; height: 26px; font-size: 13px; right: 4px; }}
+    .fs-stock-panel {{ width: 98vw; border-radius: 8px; }}
+    .fs-panel-chart {{ height: 240px; }}
+    .fs-panel-info {{ grid-template-columns: repeat(3, 1fr); }}
+}}
+
 /* Chart Modal */
 .chart-modal {{
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -599,6 +769,46 @@ tbody td:nth-child(2) {{
 <!-- Ticker Tape -->
 <div class="ticker-wrap">
     <div class="ticker-track" id="ticker-track"></div>
+    <button class="ticker-zoom" onclick="openTickerOverlay()" title="Fullscreen Ticker">&#x26F6;</button>
+</div>
+
+<!-- Ticker Fullscreen Overlay -->
+<div class="ticker-overlay" id="ticker-overlay">
+    <button class="ticker-overlay-close" onclick="closeTickerOverlay()">&times;</button>
+    <div style="overflow:hidden;">
+        <div class="ticker-overlay-track" id="fs-ticker-track"></div>
+    </div>
+    <div class="fs-stock-backdrop" id="fs-stock-backdrop" onclick="closeFsStockPanel()"></div>
+    <div class="fs-stock-panel" id="fs-stock-panel">
+        <div class="fs-panel-header">
+            <div><span class="sym" id="fs-panel-sym"></span><span class="name" id="fs-panel-name"></span></div>
+            <button class="fs-panel-close" onclick="closeFsStockPanel()">&times;</button>
+        </div>
+        <div class="fs-panel-chart" id="fs-panel-chart">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#555;">Loading chart...</div>
+        </div>
+        <div class="fs-panel-chart-legend" id="fs-panel-legend"></div>
+        <div class="fs-panel-info" id="fs-panel-info"></div>
+        <div class="fs-panel-tags" id="fs-panel-tags"></div>
+    </div>
+    <div class="ticker-overlay-paused" id="fs-paused-label">&#9654; PAUSED</div>
+    <div class="ticker-overlay-controls">
+        <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <button class="ctrl-btn" onclick="changeTickerSpeed(-1)">&#x2212;</button>
+            <span class="ctrl-val" id="fs-speed-val">1x</span>
+            <button class="ctrl-btn" onclick="changeTickerSpeed(1)">+</button>
+        </div>
+        <div class="ctrl-group">
+            <span class="ctrl-label">Size</span>
+            <button class="ctrl-btn" onclick="changeTickerFontSize(-1)">A&#x2212;</button>
+            <span class="ctrl-val" id="fs-font-val">M</span>
+            <button class="ctrl-btn" onclick="changeTickerFontSize(1)">A+</button>
+        </div>
+    </div>
+    <div class="ticker-overlay-hints">
+        <kbd>Space</kbd> Pause &nbsp; <kbd>F</kbd> Fullscreen &nbsp; <kbd>Esc</kbd> Close
+    </div>
 </div>
 
 <!-- Stats Bar -->
@@ -1183,7 +1393,11 @@ function openChart(symbol, name) {{
             if (!r.ok) throw new Error('Data not found');
             return r.json();
         }})
-        .then(data => renderChart(data, container, legendEl))
+        .then(data => {{
+            // Handle both old format (array) and new format (object with ohlcv + fundamentals)
+            const ohlcv = Array.isArray(data) ? data : (data.ohlcv || []);
+            renderChart(ohlcv, container, legendEl);
+        }})
         .catch(err => {{
             container.innerHTML = '<div class="chart-loading">Chart data not available for this stock</div>';
         }});
@@ -1295,8 +1509,353 @@ function closeChart() {{
 document.getElementById('chart-modal').addEventListener('click', e => {{
     if (e.target.id === 'chart-modal') closeChart();
 }});
+
+// ==========================================
+// TICKER FULLSCREEN OVERLAY
+// ==========================================
+let tickerOverlayOpen = false;
+let tickerPaused = false;
+
+function openTickerOverlay() {{
+    const overlay = document.getElementById('ticker-overlay');
+    const fsTrack = document.getElementById('fs-ticker-track');
+
+    // Build fullscreen ticker items from currently filtered data
+    const data = filteredData.length > 0 ? filteredData : ALL_STOCKS;
+    if (data.length === 0) return;
+
+    const items = data.map(s => {{
+        const sym = s.symbol.replace('.NS','').replace('.BO','');
+        const sign = s.change_pct >= 0 ? '+' : '';
+        const cls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
+        const escaped = s.symbol.replace(/'/g, "\\'");
+        return `<div class="fs-ticker-item" style="cursor:pointer;" onclick="openFsStockPanel('${{escaped}}')">`
+            + `<span class="fs-ticker-symbol">${{sym}}</span>`
+            + `<span class="fs-ticker-price">${{fmt(s.close)}}</span>`
+            + `<span class="fs-ticker-change ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
+            + `</div>`;
+    }}).join('');
+    fsTrack.innerHTML = items + items;
+
+    baseDuration = Math.max(60, data.length * 1.2);
+    const dur = baseDuration / SPEED_LEVELS[speedIndex];
+    fsTrack.parentElement.style.setProperty('--fs-ticker-duration', dur + 's');
+
+    // Reset controls
+    speedIndex = 3; fontIndex = 2;
+    document.getElementById('fs-speed-val').textContent = '1x';
+    document.getElementById('fs-font-val').textContent = 'M';
+
+    tickerPaused = false;
+    fsTrack.classList.remove('paused');
+    document.getElementById('fs-paused-label').classList.remove('visible');
+
+    overlay.classList.add('active');
+    tickerOverlayOpen = true;
+}}
+
+function closeTickerOverlay() {{
+    document.getElementById('ticker-overlay').classList.remove('active');
+    tickerOverlayOpen = false;
+    tickerPaused = false;
+    // Exit browser fullscreen if active
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {{}});
+}}
+
+function toggleTickerPause() {{
+    if (!tickerOverlayOpen) return;
+    tickerPaused = !tickerPaused;
+    const fsTrack = document.getElementById('fs-ticker-track');
+    const label = document.getElementById('fs-paused-label');
+    if (tickerPaused) {{
+        fsTrack.classList.add('paused');
+        label.classList.add('visible');
+    }} else {{
+        fsTrack.classList.remove('paused');
+        label.classList.remove('visible');
+    }}
+}}
+
+// Speed & Font Size controls
+const SPEED_LEVELS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
+const SPEED_LABELS = ['0.25x','0.5x','0.75x','1x','1.5x','2x','3x'];
+let speedIndex = 3; // default 1x
+let baseDuration = 180;
+
+const FONT_SIZES = [14, 18, 22, 28, 36];
+const FONT_LABELS = ['XS', 'S', 'M', 'L', 'XL'];
+let fontIndex = 2; // default M (22px)
+
+function changeTickerSpeed(dir) {{
+    speedIndex = Math.max(0, Math.min(SPEED_LEVELS.length - 1, speedIndex + dir));
+    const speed = SPEED_LEVELS[speedIndex];
+    const newDur = baseDuration / speed;
+    const fsTrack = document.getElementById('fs-ticker-track');
+    fsTrack.style.setProperty('--fs-ticker-duration', newDur + 's');
+    // Reset animation to apply new duration smoothly
+    fsTrack.style.animation = 'none';
+    fsTrack.offsetHeight; // trigger reflow
+    fsTrack.style.animation = '';
+    fsTrack.style.animationDuration = newDur + 's';
+    document.getElementById('fs-speed-val').textContent = SPEED_LABELS[speedIndex];
+}}
+
+function changeTickerFontSize(dir) {{
+    fontIndex = Math.max(0, Math.min(FONT_SIZES.length - 1, fontIndex + dir));
+    const size = FONT_SIZES[fontIndex];
+    document.querySelectorAll('.fs-ticker-item').forEach(el => {{
+        el.style.fontSize = size + 'px';
+        el.style.height = (size + 38) + 'px';
+    }});
+    document.getElementById('fs-font-val').textContent = FONT_LABELS[fontIndex];
+}}
+
+function toggleTickerFullscreen() {{
+    if (!tickerOverlayOpen) return;
+    const overlay = document.getElementById('ticker-overlay');
+    if (!document.fullscreenElement) {{
+        overlay.requestFullscreen().catch(() => {{}});
+    }} else {{
+        document.exitFullscreen().catch(() => {{}});
+    }}
+}}
+
+// ==========================================
+// FULLSCREEN STOCK DETAIL PANEL
+// ==========================================
+let fsPanelChart = null;
+let fsPanelOpen = false;
+
+function openFsStockPanel(symbol) {{
+    // Find stock data
+    const stock = ALL_STOCKS.find(s => s.symbol === symbol);
+    if (!stock) return;
+
+    const sym = symbol.replace('.NS','').replace('.BO','');
+
+    // Fill header
+    document.getElementById('fs-panel-sym').textContent = sym;
+    document.getElementById('fs-panel-name').textContent = stock.name || sym;
+
+    // Show basic price info initially (will be enriched by fundamentals when loaded)
+    const sign = stock.change_pct >= 0 ? '+' : '';
+    const chgCls = stock.change_pct > 0 ? 'green' : stock.change_pct < 0 ? 'red' : '';
+    const change = stock.close - stock.open;
+    const changSign = change >= 0 ? '+' : '';
+
+    const infoHtml = [
+        ['Open', fmt(stock.open)],
+        ['High', fmt(stock.high)],
+        ['Low', fmt(stock.low)],
+        ['Close', fmt(stock.close)],
+        ['Change', `${{changSign}}${{change.toFixed(2)}}`, change >= 0 ? 'green' : 'red'],
+        ['Change %', `${{sign}}${{stock.change_pct.toFixed(2)}}%`, chgCls],
+        ['Volume', stock.volume ? stock.volume.toLocaleString() : '-'],
+        ['Exchange', stock.exchange || '-'],
+    ].map(([label, val, cls]) =>
+        `<div class="info-cell"><div class="info-label">${{label}}</div><div class="info-val ${{cls || ''}}">${{val}}</div></div>`
+    ).join('');
+    document.getElementById('fs-panel-info').innerHTML = infoHtml;
+
+    // Basic tags (will be enriched by fundamentals)
+    const tags = [stock.sector, stock.market_cap_cat, stock.industry].filter(t => t && t !== 'Unknown');
+    document.getElementById('fs-panel-tags').innerHTML = tags.map(t => `<span class="fs-panel-tag">${{t}}</span>`).join('');
+
+    // Remove old about section
+    const oldAbout = document.getElementById('fs-panel-about');
+    if (oldAbout) oldAbout.remove();
+
+    // Show panel
+    document.getElementById('fs-stock-backdrop').classList.add('active');
+    document.getElementById('fs-stock-panel').classList.add('active');
+    fsPanelOpen = true;
+
+    // Load chart
+    const chartDiv = document.getElementById('fs-panel-chart');
+    chartDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#555;">Loading chart...</div>';
+    document.getElementById('fs-panel-legend').textContent = '';
+
+    const safeName = symbol.replace('.', '_');
+    fetch(`data/${{safeName}}.json`)
+        .then(r => r.ok ? r.json() : Promise.reject('Not found'))
+        .then(fileData => {{
+            // Handle both old (array) and new (object with ohlcv + fundamentals) formats
+            const rawData = Array.isArray(fileData) ? fileData : (fileData.ohlcv || []);
+            const fund = Array.isArray(fileData) ? {{}} : (fileData.fundamentals || {{}});
+
+            // Render chart
+            chartDiv.innerHTML = '';
+            if (fsPanelChart) {{ fsPanelChart.remove(); fsPanelChart = null; }}
+
+            const chart = LightweightCharts.createChart(chartDiv, {{
+                width: chartDiv.clientWidth,
+                height: chartDiv.clientHeight,
+                layout: {{ background: {{ type: 'solid', color: '#161b22' }}, textColor: '#8b949e' }},
+                grid: {{ vertLines: {{ color: '#21262d' }}, horzLines: {{ color: '#21262d' }} }},
+                crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
+                timeScale: {{ borderColor: '#30363d', timeVisible: false }},
+                rightPriceScale: {{ borderColor: '#30363d' }},
+            }});
+            fsPanelChart = chart;
+
+            const candleData = rawData.map(d => ({{ time: d[0], open: d[1], high: d[2], low: d[3], close: d[4] }}));
+            const volData = rawData.map(d => ({{
+                time: d[0], value: d[5],
+                color: d[4] >= d[1] ? 'rgba(38,166,65,0.3)' : 'rgba(248,81,73,0.3)'
+            }}));
+
+            const candleSeries = chart.addCandlestickSeries({{
+                upColor: '#26a641', downColor: '#f85149',
+                borderUpColor: '#26a641', borderDownColor: '#f85149',
+                wickUpColor: '#26a641', wickDownColor: '#f85149',
+            }});
+            candleSeries.setData(candleData);
+
+            const volSeries = chart.addHistogramSeries({{
+                priceFormat: {{ type: 'volume' }},
+                priceScaleId: 'vol',
+            }});
+            chart.priceScale('vol').applyOptions({{
+                scaleMargins: {{ top: 0.85, bottom: 0 }},
+            }});
+            volSeries.setData(volData);
+            chart.timeScale().fitContent();
+
+            chart.subscribeCrosshairMove(param => {{
+                const legend = document.getElementById('fs-panel-legend');
+                if (!param || !param.time) {{ legend.textContent = ''; return; }}
+                const d = param.seriesData?.get(candleSeries);
+                if (d) {{
+                    const chg = ((d.close - d.open) / d.open * 100).toFixed(2);
+                    legend.textContent = `O: ${{d.open}}  H: ${{d.high}}  L: ${{d.low}}  C: ${{d.close}}  ${{chg}}%`;
+                }}
+            }});
+
+            new ResizeObserver(() => {{
+                if (fsPanelChart) chart.applyOptions({{ width: chartDiv.clientWidth }});
+            }}).observe(chartDiv);
+
+            // Render fundamentals if available
+            if (Object.keys(fund).length > 0) {{
+                renderFundamentals(fund, stock);
+            }}
+        }})
+        .catch(() => {{
+            chartDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#555;">Chart data not available</div>';
+        }});
+}}
+
+function fmtCr(val) {{
+    if (val == null) return '-';
+    const cr = val / 1e7;
+    if (cr >= 100) return cr.toFixed(0).replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ',') + ' Cr';
+    return cr.toFixed(2) + ' Cr';
+}}
+function fmtPct(val) {{
+    if (val == null) return '-';
+    return (val * 100).toFixed(2) + '%';
+}}
+function fmtNum(val, dec) {{
+    if (val == null) return '-';
+    return Number(val).toFixed(dec || 2);
+}}
+
+function renderFundamentals(fund, stock) {{
+    // Build comprehensive info grid
+    const cells = [
+        ['Market Cap', fund.enterprise_value ? fmtCr(fund.enterprise_value) : '-'],
+        ['P/E (TTM)', fmtNum(fund.trailing_pe)],
+        ['P/E (Fwd)', fmtNum(fund.forward_pe)],
+        ['Book Value', fmtNum(fund.book_value)],
+        ['P/B Ratio', fmtNum(fund.price_to_book)],
+        ['EPS (TTM)', fmtNum(fund.eps_trailing)],
+        ['EPS (Fwd)', fmtNum(fund.eps_forward)],
+        ['Div Yield', fund.dividend_yield != null ? fmtPct(fund.dividend_yield) : '-'],
+        ['Div Rate', fund.dividend_rate != null ? '₹' + fmtNum(fund.dividend_rate) : '-'],
+        ['Payout Ratio', fund.payout_ratio != null ? fmtPct(fund.payout_ratio) : '-'],
+        ['ROE', fund.return_on_equity != null ? fmtPct(fund.return_on_equity) : '-'],
+        ['Debt/Equity', fmtNum(fund.debt_to_equity)],
+        ['Current Ratio', fmtNum(fund.current_ratio)],
+        ['Operating Margin', fund.operating_margins != null ? fmtPct(fund.operating_margins) : '-'],
+        ['Profit Margin', fund.profit_margins != null ? fmtPct(fund.profit_margins) : '-'],
+        ['Gross Margin', fund.gross_margins != null ? fmtPct(fund.gross_margins) : '-'],
+        ['Revenue', fund.revenue ? fmtCr(fund.revenue) : '-'],
+        ['Rev Growth', fund.revenue_growth != null ? fmtPct(fund.revenue_growth) : '-'],
+        ['EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : '-'],
+        ['Net Income', fund.net_income ? fmtCr(fund.net_income) : '-'],
+        ['Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : '-'],
+        ['Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : '-'],
+        ['Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : '-'],
+        ['52W High', fund.fifty_two_week_high ? '₹' + fmtNum(fund.fifty_two_week_high) : '-'],
+        ['52W Low', fund.fifty_two_week_low ? '₹' + fmtNum(fund.fifty_two_week_low) : '-'],
+        ['Beta', fmtNum(fund.beta)],
+        ['50D Avg', fund.fifty_day_average ? '₹' + fmtNum(fund.fifty_day_average) : '-'],
+        ['200D Avg', fund.two_hundred_day_avg ? '₹' + fmtNum(fund.two_hundred_day_avg) : '-'],
+        ['Target Price', fund.target_mean_price ? '₹' + fmtNum(fund.target_mean_price) : '-'],
+        ['Recommendation', fund.recommendation ? fund.recommendation.toUpperCase() : '-'],
+        ['Analysts', fund.num_analyst_opinions || '-'],
+        ['Shares Out', fund.shares_outstanding ? (fund.shares_outstanding / 1e7).toFixed(2) + ' Cr' : '-'],
+        ['Insider Hold', fund.held_pct_insiders != null ? fmtPct(fund.held_pct_insiders) : '-'],
+        ['Inst Hold', fund.held_pct_institutions != null ? fmtPct(fund.held_pct_institutions) : '-'],
+        ['Employees', fund.full_time_employees ? fund.full_time_employees.toLocaleString() : '-'],
+        ['Earnings Gr.', fund.earnings_growth != null ? fmtPct(fund.earnings_growth) : '-'],
+    ].filter(([_, v]) => v !== '-');
+
+    const infoHtml = cells.map(([label, val]) => {{
+        let cls = '';
+        if (typeof val === 'string' && val.includes('%')) {{
+            const num = parseFloat(val);
+            if (!isNaN(num)) cls = num > 0 ? 'green' : num < 0 ? 'red' : '';
+        }}
+        return `<div class="info-cell"><div class="info-label">${{label}}</div><div class="info-val ${{cls}}">${{val}}</div></div>`;
+    }}).join('');
+    document.getElementById('fs-panel-info').innerHTML = infoHtml;
+
+    // Tags
+    const tags = [stock.sector, stock.market_cap_cat, stock.industry, stock.exchange].filter(t => t && t !== 'Unknown');
+    if (fund.website) tags.push(fund.website.replace('https://','').replace('http://',''));
+    if (fund.city) tags.push(fund.city);
+    document.getElementById('fs-panel-tags').innerHTML = tags.map(t => `<span class="fs-panel-tag">${{t}}</span>`).join('');
+
+    // Update header with long name if available
+    if (fund.long_name) {{
+        document.getElementById('fs-panel-name').textContent = fund.long_name;
+    }}
+
+    // Add about section if available
+    if (fund.long_business_summary) {{
+        const existing = document.getElementById('fs-panel-about');
+        if (existing) existing.remove();
+        const aboutDiv = document.createElement('div');
+        aboutDiv.id = 'fs-panel-about';
+        aboutDiv.style.cssText = 'padding:14px 20px;border-top:1px solid #30363d;font-size:13px;color:#8b949e;line-height:1.6;max-height:120px;overflow-y:auto;';
+        // Show first 300 chars with "..." if longer
+        const text = fund.long_business_summary;
+        aboutDiv.textContent = text.length > 300 ? text.substring(0, 300) + '...' : text;
+        document.getElementById('fs-stock-panel').appendChild(aboutDiv);
+    }}
+}}
+
+function closeFsStockPanel() {{
+    document.getElementById('fs-stock-backdrop').classList.remove('active');
+    document.getElementById('fs-stock-panel').classList.remove('active');
+    fsPanelOpen = false;
+    if (fsPanelChart) {{ fsPanelChart.remove(); fsPanelChart = null; }}
+}}
+
+// Keyboard shortcuts
 document.addEventListener('keydown', e => {{
-    if (e.key === 'Escape') closeChart();
+    if (tickerOverlayOpen) {{
+        if (fsPanelOpen) {{
+            if (e.key === 'Escape') {{ closeFsStockPanel(); e.preventDefault(); return; }}
+        }} else {{
+            if (e.key === 'Escape') {{ closeTickerOverlay(); e.preventDefault(); return; }}
+        }}
+        if (e.key === ' ' || e.code === 'Space') {{ toggleTickerPause(); e.preventDefault(); return; }}
+        if (e.key === 'f' || e.key === 'F') {{ toggleTickerFullscreen(); e.preventDefault(); return; }}
+    }} else {{
+        if (e.key === 'Escape') closeChart();
+    }}
 }});
 </script>
 </body>

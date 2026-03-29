@@ -51,6 +51,66 @@ def init_db():
         )
     """)
 
+    # Stock fundamentals: detailed financial data
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stock_fundamentals (
+            symbol                TEXT PRIMARY KEY,
+            long_name             TEXT,
+            long_business_summary TEXT,
+            website               TEXT,
+            city                  TEXT,
+            full_time_employees   INTEGER,
+            trailing_pe           REAL,
+            forward_pe            REAL,
+            price_to_book         REAL,
+            book_value            REAL,
+            eps_trailing          REAL,
+            eps_forward           REAL,
+            dividend_rate         REAL,
+            dividend_yield        REAL,
+            payout_ratio          REAL,
+            five_yr_avg_div_yield REAL,
+            revenue               REAL,
+            revenue_per_share     REAL,
+            revenue_growth        REAL,
+            ebitda                REAL,
+            ebitda_margins        REAL,
+            gross_margins         REAL,
+            operating_margins     REAL,
+            profit_margins        REAL,
+            net_income            REAL,
+            total_cash            REAL,
+            total_cash_per_share  REAL,
+            total_debt            REAL,
+            debt_to_equity        REAL,
+            current_ratio         REAL,
+            free_cashflow         REAL,
+            return_on_equity      REAL,
+            enterprise_value      REAL,
+            enterprise_to_ebitda  REAL,
+            enterprise_to_revenue REAL,
+            earnings_growth       REAL,
+            shares_outstanding    REAL,
+            float_shares          REAL,
+            held_pct_insiders     REAL,
+            held_pct_institutions REAL,
+            beta                  REAL,
+            fifty_two_week_high   REAL,
+            fifty_two_week_low    REAL,
+            fifty_day_average     REAL,
+            two_hundred_day_avg   REAL,
+            target_high_price     REAL,
+            target_low_price      REAL,
+            target_mean_price     REAL,
+            recommendation        TEXT,
+            num_analyst_opinions  INTEGER,
+            all_time_high         REAL,
+            all_time_low          REAL,
+            updated_at            TEXT,
+            FOREIGN KEY (symbol) REFERENCES stocks(symbol)
+        )
+    """)
+
     # Index for faster latest-price lookups
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_eod_symbol_date
@@ -181,6 +241,125 @@ def get_stock_info_map() -> dict[str, dict]:
         r[0]: {"sector": r[1], "industry": r[2], "market_cap_cat": r[3]}
         for r in rows
     }
+
+
+def upsert_stock_fundamentals(symbol: str, data: dict):
+    """Insert or update stock fundamentals from yfinance .info."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT OR REPLACE INTO stock_fundamentals (
+            symbol, long_name, long_business_summary, website, city,
+            full_time_employees, trailing_pe, forward_pe, price_to_book,
+            book_value, eps_trailing, eps_forward, dividend_rate,
+            dividend_yield, payout_ratio, five_yr_avg_div_yield,
+            revenue, revenue_per_share, revenue_growth, ebitda,
+            ebitda_margins, gross_margins, operating_margins,
+            profit_margins, net_income, total_cash, total_cash_per_share,
+            total_debt, debt_to_equity, current_ratio, free_cashflow,
+            return_on_equity, enterprise_value, enterprise_to_ebitda,
+            enterprise_to_revenue, earnings_growth, shares_outstanding,
+            float_shares, held_pct_insiders, held_pct_institutions,
+            beta, fifty_two_week_high, fifty_two_week_low,
+            fifty_day_average, two_hundred_day_avg, target_high_price,
+            target_low_price, target_mean_price, recommendation,
+            num_analyst_opinions, all_time_high, all_time_low, updated_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')
+        )
+    """, (
+        symbol,
+        data.get('longName'),
+        data.get('longBusinessSummary'),
+        data.get('website'),
+        data.get('city'),
+        data.get('fullTimeEmployees'),
+        data.get('trailingPE'),
+        data.get('forwardPE'),
+        data.get('priceToBook'),
+        data.get('bookValue'),
+        data.get('trailingEps'),
+        data.get('forwardEps'),
+        data.get('dividendRate'),
+        data.get('dividendYield'),
+        data.get('payoutRatio'),
+        data.get('fiveYearAvgDividendYield'),
+        data.get('totalRevenue'),
+        data.get('revenuePerShare'),
+        data.get('revenueGrowth'),
+        data.get('ebitda'),
+        data.get('ebitdaMargins'),
+        data.get('grossMargins'),
+        data.get('operatingMargins'),
+        data.get('profitMargins'),
+        data.get('netIncomeToCommon'),
+        data.get('totalCash'),
+        data.get('totalCashPerShare'),
+        data.get('totalDebt'),
+        data.get('debtToEquity'),
+        data.get('currentRatio'),
+        data.get('freeCashflow'),
+        data.get('returnOnEquity'),
+        data.get('enterpriseValue'),
+        data.get('enterpriseToEbitda'),
+        data.get('enterpriseToRevenue'),
+        data.get('earningsGrowth'),
+        data.get('sharesOutstanding'),
+        data.get('floatShares'),
+        data.get('heldPercentInsiders'),
+        data.get('heldPercentInstitutions'),
+        data.get('beta'),
+        data.get('fiftyTwoWeekHigh'),
+        data.get('fiftyTwoWeekLow'),
+        data.get('fiftyDayAverage'),
+        data.get('twoHundredDayAverage'),
+        data.get('targetHighPrice'),
+        data.get('targetLowPrice'),
+        data.get('targetMeanPrice'),
+        data.get('recommendationKey'),
+        data.get('numberOfAnalystOpinions'),
+        data.get('allTimeHigh'),
+        data.get('allTimeLow'),
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_stock_fundamentals(symbol: str) -> dict:
+    """Return fundamentals for a single stock."""
+    conn = get_connection()
+    cursor = conn.execute(
+        "SELECT * FROM stock_fundamentals WHERE symbol = ?", (symbol,)
+    )
+    cols = [desc[0] for desc in cursor.description]
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(zip(cols, row))
+    return {}
+
+
+def get_all_fundamentals_map() -> dict:
+    """Return a map of symbol -> fundamentals dict for all stocks."""
+    conn = get_connection()
+    cursor = conn.execute("SELECT * FROM stock_fundamentals")
+    cols = [desc[0] for desc in cursor.description]
+    rows = cursor.fetchall()
+    conn.close()
+    return {row[0]: dict(zip(cols, row)) for row in rows}
+
+
+def get_stocks_without_fundamentals() -> list[str]:
+    """Return symbols that have price data but no fundamentals."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT s.symbol FROM stocks s
+        LEFT JOIN stock_fundamentals sf ON s.symbol = sf.symbol
+        WHERE sf.symbol IS NULL
+    """).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
 
 
 def get_stocks_without_info() -> list[str]:
