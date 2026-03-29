@@ -3187,40 +3187,56 @@ function closeIndicesPanel() {{
     document.body.style.overflow = '';
 }}
 
+let indicesData = null;
+
 function renderIndicesPanel(data) {{
+    indicesData = data;
+    const regions = Object.keys(data);
+
+    // Build tabs
+    const tabsContainer = document.getElementById('indices-tabs');
+    tabsContainer.innerHTML = regions.map((region, i) => {{
+        const short = region.replace('India - ', '').replace('United States', 'US').replace('Asia Pacific', 'Asia');
+        return `<button class="idx-tab ${{i === 0 ? 'active' : ''}}" onclick="switchIndicesTab('${{region}}', this)">${{short}}</button>`;
+    }}).join('');
+
+    // Show first tab
+    showIndicesRegion(regions[0]);
+}}
+
+function switchIndicesTab(region, btn) {{
+    document.querySelectorAll('.idx-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    showIndicesRegion(region);
+}}
+
+function showIndicesRegion(region) {{
     const container = document.getElementById('indices-content');
-    let html = '';
+    const indices = indicesData[region] || [];
 
-    for (const [region, indices] of Object.entries(data)) {{
-        html += `<div class="idx-region">`;
-        html += `<div class="idx-region-title">${{region}}</div>`;
-        html += `<div class="idx-grid">`;
+    let html = '<div class="idx-grid">';
+    for (const idx of indices) {{
+        const isUp = idx.change_pct >= 0;
+        const arrow = isUp ? '\u25b2' : '\u25bc';
+        const cls = isUp ? 'green' : 'red';
+        const sign = isUp ? '+' : '';
 
-        for (const idx of indices) {{
-            const isUp = idx.change_pct >= 0;
-            const arrow = isUp ? '\u25b2' : '\u25bc';
-            const cls = isUp ? 'green' : 'red';
-            const sign = isUp ? '+' : '';
-
-            html += `<div class="idx-card">
-                <div class="idx-name">${{idx.name}}</div>
-                <div class="idx-price">${{idx.close.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</div>
-                <div class="idx-change ${{cls}}">
-                    ${{arrow}} ${{sign}}${{idx.change.toFixed(2)}}
-                    <span class="idx-pct ${{cls}}">${{sign}}${{idx.change_pct.toFixed(2)}}%</span>
-                </div>
-                <div class="idx-meta">
-                    <span>O: ${{idx.open.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
-                    <span>H: ${{idx.high.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
-                    <span>L: ${{idx.low.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
-                </div>
-                <div class="idx-date">${{idx.date}}</div>
-            </div>`;
-        }}
-
-        html += `</div></div>`;
+        html += `<div class="idx-card">
+            <div class="idx-name">${{idx.name}}</div>
+            <div class="idx-price">${{idx.close.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</div>
+            <div class="idx-change ${{cls}}">
+                ${{arrow}} ${{sign}}${{idx.change.toFixed(2)}}
+                <span class="idx-pct ${{cls}}">${{sign}}${{idx.change_pct.toFixed(2)}}%</span>
+            </div>
+            <div class="idx-meta">
+                <span>O: ${{idx.open.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+                <span>H: ${{idx.high.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+                <span>L: ${{idx.low.toLocaleString('en-IN', {{maximumFractionDigits:2}})}}</span>
+            </div>
+            <div class="idx-date">${{idx.date}}</div>
+        </div>`;
     }}
-
+    html += '</div>';
     container.innerHTML = html;
 }}
 </script>
@@ -3231,21 +3247,22 @@ function renderIndicesPanel(data) {{
         <div style="display:flex;align-items:center;gap:16px;">
             <button onclick="closeIndicesPanel()" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">&larr; Back</button>
             <h2 style="margin:0;color:#58a6ff;font-size:20px;font-weight:700;">Market Indices</h2>
-            <span style="color:#8b949e;font-size:13px;">India + Global</span>
         </div>
     </div>
+    <div id="indices-tabs" style="display:flex;gap:8px;padding:12px 24px;border-bottom:1px solid #21262d;flex-wrap:wrap;"></div>
     <div id="indices-content" style="flex:1;overflow-y:auto;padding:20px 24px;">
         <div style="text-align:center;color:#8b949e;padding:40px;">Loading indices...</div>
     </div>
 </div>
 
 <style>
-.idx-region {{ margin-bottom: 28px; }}
-.idx-region-title {{
-    font-size: 14px; font-weight: 700; color: #58a6ff; text-transform: uppercase;
-    letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 8px;
-    border-bottom: 1px solid #21262d;
+.idx-tab {{
+    background: none; border: 1px solid #30363d; color: #8b949e;
+    padding: 8px 18px; border-radius: 20px; cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: all 0.2s;
 }}
+.idx-tab:hover {{ border-color: #58a6ff; color: #e6edf3; }}
+.idx-tab.active {{ background: #58a6ff; color: #fff; border-color: #58a6ff; }}
 .idx-grid {{
     display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;
