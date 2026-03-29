@@ -716,37 +716,82 @@ tbody td:nth-child(2) {{
     border-bottom: 1px solid var(--border);
 }}
 .fs-panel-info {{
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1px; background: var(--border);
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; padding: 16px; background: var(--bg-primary);
 }}
-.fs-panel-info .info-cell {{
-    background: var(--bg-secondary); padding: 12px 16px;
+.fund-card {{
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
 }}
-.fs-panel-info .info-label {{
-    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-    color: var(--text-muted); margin-bottom: 4px;
+.fund-card-title {{
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-muted); padding: 10px 14px 6px;
+    border-bottom: 1px solid var(--border); font-weight: 600;
 }}
-.fs-panel-info .info-val {{
-    font-size: 15px; font-weight: 600; color: var(--text-primary);
+.fund-card-body {{ padding: 4px 0; }}
+.fund-row {{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 14px; transition: background 0.15s;
 }}
-.fs-panel-info .info-val.green {{ color: var(--green); }}
-.fs-panel-info .info-val.red {{ color: var(--red); }}
+.fund-row:hover {{ background: rgba(255,255,255,0.03); }}
+.fund-row .f-label {{ font-size: 12px; color: var(--text-secondary); }}
+.fund-row .f-val {{ font-size: 13px; font-weight: 600; color: var(--text-primary); text-align: right; }}
+.fund-row .f-val.green {{ color: var(--green); }}
+.fund-row .f-val.red {{ color: var(--red); }}
+.fund-row .f-val.blue {{ color: var(--blue); }}
+.fund-row .f-val.gold {{ color: #f0b90b; }}
+/* Key metric highlight */
+.fund-row.key-metric {{
+    background: rgba(88,166,255,0.06); border-left: 3px solid var(--blue);
+    padding-left: 11px;
+}}
+.fund-row.key-metric .f-val {{ font-size: 15px; }}
+/* Recommendation badge */
+.rec-badge {{
+    display: inline-block; padding: 3px 10px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+}}
+.rec-buy {{ background: rgba(38,166,65,0.2); color: var(--green); border: 1px solid rgba(38,166,65,0.3); }}
+.rec-hold {{ background: rgba(240,185,11,0.15); color: #f0b90b; border: 1px solid rgba(240,185,11,0.3); }}
+.rec-sell {{ background: rgba(248,81,73,0.2); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }}
+/* 52W range bar */
+.range-bar-container {{ padding: 8px 14px; }}
+.range-bar {{
+    position: relative; height: 6px; background: linear-gradient(90deg, var(--red), #f0b90b, var(--green));
+    border-radius: 3px; margin: 8px 0 4px;
+}}
+.range-dot {{
+    position: absolute; top: -5px; width: 16px; height: 16px;
+    background: var(--blue); border: 2px solid #fff; border-radius: 50%;
+    transform: translateX(-50%); box-shadow: 0 0 8px rgba(88,166,255,0.5);
+}}
+.range-labels {{ display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }}
+.range-current {{ font-size: 14px; font-weight: 700; color: var(--text-primary); text-align: center; margin-top: 2px; }}
+/* About section */
+.fund-about {{
+    padding: 12px 14px; font-size: 12px; color: var(--text-secondary);
+    line-height: 1.5; border-top: 1px solid var(--border);
+    max-height: 80px; overflow-y: auto;
+}}
+/* Tags */
 .fs-panel-tags {{
-    display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 20px;
-    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px;
 }}
 .fs-panel-tag {{
-    font-size: 11px; padding: 4px 10px; border-radius: 4px;
-    background: var(--bg-tertiary); color: var(--text-secondary);
-    border: 1px solid var(--border);
+    font-size: 11px; padding: 4px 10px; border-radius: 12px;
+    background: rgba(88,166,255,0.1); color: var(--blue);
+    border: 1px solid rgba(88,166,255,0.2); font-weight: 500;
 }}
+.fs-panel-tag.sector {{ background: rgba(163,113,247,0.12); color: #a371f7; border-color: rgba(163,113,247,0.25); }}
+.fs-panel-tag.cap {{ background: rgba(38,166,65,0.1); color: var(--green); border-color: rgba(38,166,65,0.2); }}
+.fs-panel-tag.exchange {{ background: rgba(240,185,11,0.1); color: #f0b90b; border-color: rgba(240,185,11,0.2); }}
 
 @media (max-width: 768px) {{
     .ticker-overlay .fs-ticker-item {{ font-size: 16px; padding: 0 20px; height: 48px; gap: 10px; }}
     .ticker-zoom {{ width: 26px; height: 26px; font-size: 13px; right: 4px; }}
     .fs-stock-panel {{ width: 98vw; border-radius: 8px; }}
     .fs-panel-chart {{ height: 240px; }}
-    .fs-panel-info {{ grid-template-columns: repeat(3, 1fr); }}
+    .fs-panel-info {{ grid-template-columns: 1fr; gap: 8px; padding: 8px; }}
 }}
 
 /* Chart Modal */
@@ -2118,78 +2163,152 @@ function fmtNum(val, dec) {{
 }}
 
 function renderFundamentals(fund, stock) {{
-    // Build comprehensive info grid
-    const cells = [
-        ['Market Cap', fund.enterprise_value ? fmtCr(fund.enterprise_value) : '-'],
-        ['P/E (TTM)', fmtNum(fund.trailing_pe)],
+    // Helper to build a card
+    function card(title, rows) {{
+        const validRows = rows.filter(r => r[1] !== '-' && r[1] != null);
+        if (validRows.length === 0) return '';
+        const body = validRows.map(([label, val, cls, isKey]) => {{
+            const rowCls = isKey ? ' key-metric' : '';
+            return `<div class="fund-row${{rowCls}}"><span class="f-label">${{label}}</span><span class="f-val ${{cls || ''}}">${{val}}</span></div>`;
+        }}).join('');
+        return `<div class="fund-card"><div class="fund-card-title">${{title}}</div><div class="fund-card-body">${{body}}</div></div>`;
+    }}
+
+    // Color helper for percentage values
+    function pctCls(val) {{
+        if (val == null) return '';
+        const n = typeof val === 'string' ? parseFloat(val) : val;
+        return n > 0 ? 'green' : n < 0 ? 'red' : '';
+    }}
+
+    // Recommendation badge
+    function recBadge(rec) {{
+        if (!rec) return '-';
+        const r = rec.toUpperCase();
+        let cls = 'rec-hold';
+        if (r.includes('BUY') || r === 'STRONG_BUY') cls = 'rec-buy';
+        else if (r.includes('SELL') || r === 'STRONG_SELL') cls = 'rec-sell';
+        return `<span class="rec-badge ${{cls}}">${{r.replace('_',' ')}}</span>`;
+    }}
+
+    // Build cards
+    let html = '';
+
+    // Row 1: Valuation | Margins | Income
+    html += card('VALUATION', [
+        ['P/E (TTM)', fmtNum(fund.trailing_pe), '', true],
         ['P/E (Fwd)', fmtNum(fund.forward_pe)],
-        ['Book Value', fmtNum(fund.book_value)],
         ['P/B Ratio', fmtNum(fund.price_to_book)],
-        ['EPS (TTM)', fmtNum(fund.eps_trailing)],
-        ['EPS (Fwd)', fmtNum(fund.eps_forward)],
-        ['Div Yield', fund.dividend_yield != null ? fmtPct(fund.dividend_yield) : '-'],
+        ['EPS (TTM)', '₹' + fmtNum(fund.eps_trailing), 'blue'],
+        ['EPS (Fwd)', '₹' + fmtNum(fund.eps_forward)],
+        ['Book Value', '₹' + fmtNum(fund.book_value)],
+    ]);
+
+    html += card('MARGINS', [
+        ['Operating', fund.operating_margins != null ? fmtPct(fund.operating_margins) : '-', pctCls(fund.operating_margins), true],
+        ['Profit', fund.profit_margins != null ? fmtPct(fund.profit_margins) : '-', pctCls(fund.profit_margins)],
+        ['Gross', fund.gross_margins != null ? fmtPct(fund.gross_margins) : '-', pctCls(fund.gross_margins)],
+        ['EBITDA', fund.ebitda_margins != null ? fmtPct(fund.ebitda_margins) : '-', pctCls(fund.ebitda_margins)],
+        ['ROE', fund.return_on_equity != null ? fmtPct(fund.return_on_equity) : '-', pctCls(fund.return_on_equity), true],
+    ]);
+
+    html += card('INCOME', [
+        ['Revenue', fund.revenue ? fmtCr(fund.revenue) : '-', 'blue', true],
+        ['Rev Growth', fund.revenue_growth != null ? fmtPct(fund.revenue_growth) : '-', pctCls(fund.revenue_growth), true],
+        ['EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : '-'],
+        ['Net Income', fund.net_income ? fmtCr(fund.net_income) : '-', fund.net_income > 0 ? 'green' : fund.net_income < 0 ? 'red' : ''],
+        ['Earn Growth', fund.earnings_growth != null ? fmtPct(fund.earnings_growth) : '-', pctCls(fund.earnings_growth)],
+    ]);
+
+    // Row 2: Balance Sheet | Dividends | Holdings
+    html += card('BALANCE SHEET', [
+        ['Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : '-', fund.total_debt > 0 ? 'red' : ''],
+        ['Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : '-', 'green'],
+        ['Debt/Equity', fmtNum(fund.debt_to_equity), '', true],
+        ['Current Ratio', fmtNum(fund.current_ratio)],
+        ['Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : '-', fund.free_cashflow > 0 ? 'green' : 'red'],
+    ]);
+
+    html += card('DIVIDENDS', [
+        ['Div Yield', fund.dividend_yield != null ? fmtPct(fund.dividend_yield) : '-', 'gold', true],
         ['Div Rate', fund.dividend_rate != null ? '₹' + fmtNum(fund.dividend_rate) : '-'],
         ['Payout Ratio', fund.payout_ratio != null ? fmtPct(fund.payout_ratio) : '-'],
-        ['ROE', fund.return_on_equity != null ? fmtPct(fund.return_on_equity) : '-'],
-        ['Debt/Equity', fmtNum(fund.debt_to_equity)],
-        ['Current Ratio', fmtNum(fund.current_ratio)],
-        ['Operating Margin', fund.operating_margins != null ? fmtPct(fund.operating_margins) : '-'],
-        ['Profit Margin', fund.profit_margins != null ? fmtPct(fund.profit_margins) : '-'],
-        ['Gross Margin', fund.gross_margins != null ? fmtPct(fund.gross_margins) : '-'],
-        ['Revenue', fund.revenue ? fmtCr(fund.revenue) : '-'],
-        ['Rev Growth', fund.revenue_growth != null ? fmtPct(fund.revenue_growth) : '-'],
-        ['EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : '-'],
-        ['Net Income', fund.net_income ? fmtCr(fund.net_income) : '-'],
-        ['Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : '-'],
-        ['Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : '-'],
-        ['Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : '-'],
-        ['52W High', fund.fifty_two_week_high ? '₹' + fmtNum(fund.fifty_two_week_high) : '-'],
-        ['52W Low', fund.fifty_two_week_low ? '₹' + fmtNum(fund.fifty_two_week_low) : '-'],
-        ['Beta', fmtNum(fund.beta)],
-        ['50D Avg', fund.fifty_day_average ? '₹' + fmtNum(fund.fifty_day_average) : '-'],
-        ['200D Avg', fund.two_hundred_day_avg ? '₹' + fmtNum(fund.two_hundred_day_avg) : '-'],
-        ['Target Price', fund.target_mean_price ? '₹' + fmtNum(fund.target_mean_price) : '-'],
-        ['Recommendation', fund.recommendation ? fund.recommendation.toUpperCase() : '-'],
-        ['Analysts', fund.num_analyst_opinions || '-'],
+        ['5Y Avg Yield', fund.five_yr_avg_div_yield != null ? fmtNum(fund.five_yr_avg_div_yield) + '%' : '-'],
+    ]);
+
+    html += card('HOLDINGS', [
+        ['Insider Hold', fund.held_pct_insiders != null ? fmtPct(fund.held_pct_insiders) : '-', fund.held_pct_insiders > 0.5 ? 'green' : ''],
+        ['Inst Hold', fund.held_pct_institutions != null ? fmtPct(fund.held_pct_institutions) : '-', 'blue'],
         ['Shares Out', fund.shares_outstanding ? (fund.shares_outstanding / 1e7).toFixed(2) + ' Cr' : '-'],
-        ['Insider Hold', fund.held_pct_insiders != null ? fmtPct(fund.held_pct_insiders) : '-'],
-        ['Inst Hold', fund.held_pct_institutions != null ? fmtPct(fund.held_pct_institutions) : '-'],
+        ['Float Shares', fund.float_shares ? (fund.float_shares / 1e7).toFixed(2) + ' Cr' : '-'],
         ['Employees', fund.full_time_employees ? fund.full_time_employees.toLocaleString() : '-'],
-        ['Earnings Gr.', fund.earnings_growth != null ? fmtPct(fund.earnings_growth) : '-'],
-    ].filter(([_, v]) => v !== '-');
+    ]);
 
-    const infoHtml = cells.map(([label, val]) => {{
-        let cls = '';
-        if (typeof val === 'string' && val.includes('%')) {{
-            const num = parseFloat(val);
-            if (!isNaN(num)) cls = num > 0 ? 'green' : num < 0 ? 'red' : '';
-        }}
-        return `<div class="info-cell"><div class="info-label">${{label}}</div><div class="info-val ${{cls}}">${{val}}</div></div>`;
-    }}).join('');
-    document.getElementById('fs-panel-info').innerHTML = infoHtml;
+    // Row 3: 52W Range (visual) | Targets
+    // 52W Range with visual bar
+    if (fund.fifty_two_week_high && fund.fifty_two_week_low) {{
+        const low = fund.fifty_two_week_low;
+        const high = fund.fifty_two_week_high;
+        const current = stock.close;
+        const pct = Math.min(100, Math.max(0, ((current - low) / (high - low)) * 100));
+        html += `<div class="fund-card">
+            <div class="fund-card-title">52 WEEK RANGE</div>
+            <div class="range-bar-container">
+                <div class="range-current">₹${{current.toFixed(2)}}</div>
+                <div class="range-bar"><div class="range-dot" style="left:${{pct}}%"></div></div>
+                <div class="range-labels"><span>₹${{low.toFixed(2)}}</span><span>₹${{high.toFixed(2)}}</span></div>
+            </div>
+            <div class="fund-card-body">
+                <div class="fund-row"><span class="f-label">50D Avg</span><span class="f-val">₹${{fmtNum(fund.fifty_day_average)}}</span></div>
+                <div class="fund-row"><span class="f-label">200D Avg</span><span class="f-val">₹${{fmtNum(fund.two_hundred_day_avg)}}</span></div>
+                <div class="fund-row"><span class="f-label">Beta</span><span class="f-val">${{fmtNum(fund.beta)}}</span></div>
+            </div>
+        </div>`;
+    }}
 
-    // Tags
-    const tags = [stock.sector, stock.market_cap_cat, stock.industry, stock.exchange].filter(t => t && t !== 'Unknown');
-    if (fund.website) tags.push(fund.website.replace('https://','').replace('http://',''));
-    if (fund.city) tags.push(fund.city);
-    document.getElementById('fs-panel-tags').innerHTML = tags.map(t => `<span class="fs-panel-tag">${{t}}</span>`).join('');
+    // Targets with recommendation badge
+    const hasTargets = fund.target_mean_price || fund.recommendation;
+    if (hasTargets) {{
+        html += `<div class="fund-card">
+            <div class="fund-card-title">ANALYST TARGETS</div>
+            <div class="fund-card-body">
+                ${{fund.recommendation ? `<div class="fund-row key-metric"><span class="f-label">Recommendation</span><span class="f-val">${{recBadge(fund.recommendation)}}</span></div>` : ''}}
+                ${{fund.num_analyst_opinions ? `<div class="fund-row"><span class="f-label">Analysts</span><span class="f-val blue">${{fund.num_analyst_opinions}}</span></div>` : ''}}
+                ${{fund.target_high_price ? `<div class="fund-row"><span class="f-label">Target High</span><span class="f-val green">₹${{fmtNum(fund.target_high_price)}}</span></div>` : ''}}
+                ${{fund.target_mean_price ? `<div class="fund-row"><span class="f-label">Target Mean</span><span class="f-val blue">₹${{fmtNum(fund.target_mean_price)}}</span></div>` : ''}}
+                ${{fund.target_low_price ? `<div class="fund-row"><span class="f-label">Target Low</span><span class="f-val red">₹${{fmtNum(fund.target_low_price)}}</span></div>` : ''}}
+            </div>
+        </div>`;
+    }}
 
-    // Update header with long name if available
+    document.getElementById('fs-panel-info').innerHTML = html;
+
+    // Tags with colored categories
+    let tagsHtml = '';
+    if (stock.sector && stock.sector !== 'Unknown') tagsHtml += `<span class="fs-panel-tag sector">${{stock.sector}}</span>`;
+    if (stock.market_cap_cat && stock.market_cap_cat !== 'Unknown') tagsHtml += `<span class="fs-panel-tag cap">${{stock.market_cap_cat}}</span>`;
+    if (stock.industry && stock.industry !== 'Unknown') tagsHtml += `<span class="fs-panel-tag">${{stock.industry}}</span>`;
+    if (stock.exchange) tagsHtml += `<span class="fs-panel-tag exchange">${{stock.exchange}}</span>`;
+    if (fund.website) tagsHtml += `<span class="fs-panel-tag">${{fund.website.replace('https://','').replace('http://','')}}</span>`;
+    if (fund.city) tagsHtml += `<span class="fs-panel-tag">${{fund.city}}</span>`;
+    document.getElementById('fs-panel-tags').innerHTML = tagsHtml;
+
+    // Update header with long name
     if (fund.long_name) {{
         document.getElementById('fs-panel-name').textContent = fund.long_name;
     }}
 
-    // Add about section if available
+    // About section inside the last card
+    const existing = document.getElementById('fs-panel-about');
+    if (existing) existing.remove();
     if (fund.long_business_summary) {{
-        const existing = document.getElementById('fs-panel-about');
-        if (existing) existing.remove();
         const aboutDiv = document.createElement('div');
         aboutDiv.id = 'fs-panel-about';
-        aboutDiv.style.cssText = 'padding:14px 20px;border-top:1px solid #30363d;font-size:13px;color:#8b949e;line-height:1.6;max-height:120px;overflow-y:auto;';
-        // Show first 300 chars with "..." if longer
+        aboutDiv.className = 'fund-card';
         const text = fund.long_business_summary;
-        aboutDiv.textContent = text.length > 300 ? text.substring(0, 300) + '...' : text;
-        document.getElementById('fs-stock-panel').appendChild(aboutDiv);
+        const shortText = text.length > 250 ? text.substring(0, 250) + '...' : text;
+        aboutDiv.innerHTML = `<div class="fund-card-title">ABOUT</div><div class="fund-about">${{shortText}}</div>`;
+        document.getElementById('fs-panel-info').appendChild(aboutDiv);
     }}
 }}
 
