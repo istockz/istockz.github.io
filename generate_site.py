@@ -637,7 +637,7 @@ tbody td:nth-child(2) {{
     animation: ticker-scroll var(--fs-ticker-duration, 180s) linear infinite;
 }}
 .ticker-overlay-track.paused {{ animation-play-state: paused; }}
-.ticker-overlay-body:hover .ticker-overlay-track {{ animation-play-state: paused; }}
+.ticker-overlay:hover .ticker-overlay-track {{ animation-play-state: paused; }}
 .ticker-overlay .fs-ticker-item {{
     display: flex; align-items: center; gap: 14px;
     padding: 0 40px; white-space: nowrap; height: 60px;
@@ -1080,14 +1080,12 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
 <!-- Ticker Fullscreen Overlay -->
 <div class="ticker-overlay" id="ticker-overlay">
     <button class="ticker-overlay-close" onclick="closeTickerOverlay()">&times;</button>
-    <div style="position:relative;">
-        <div style="overflow:hidden;width:100%;height:100%;">
-            <div class="ticker-overlay-track" id="fs-ticker-track"></div>
-        </div>
-        <div class="ticker-search-box fs-search" id="fs-ticker-search">
-            <input type="text" placeholder="&#128269; Search..." oninput="tickerSearch(this.value, 'fs')" onfocus="tickerSearch(this.value, 'fs')" autocomplete="off" />
-            <div class="ticker-search-results" id="fs-ticker-results"></div>
-        </div>
+    <div class="ticker-search-box fs-search" id="fs-ticker-search" style="position:absolute;top:16px;right:60px;z-index:100;">
+        <input type="text" placeholder="&#128269; Search..." oninput="tickerSearch(this.value, 'fs')" onfocus="tickerSearch(this.value, 'fs')" autocomplete="off" />
+        <div class="ticker-search-results" id="fs-ticker-results"></div>
+    </div>
+    <div style="overflow:hidden;width:100%;height:100%;">
+        <div class="ticker-overlay-track" id="fs-ticker-track"></div>
     </div>
     <div class="fs-stock-backdrop" id="fs-stock-backdrop" onclick="closeFsStockPanel()"></div>
     <div class="fs-stock-panel" id="fs-stock-panel">
