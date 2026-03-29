@@ -924,7 +924,7 @@ tbody td:nth-child(2) {{
     flex: 1; display: flex; overflow: hidden; min-height: 0;
 }}
 .detail-data-pane {{
-    width: 380px; flex-shrink: 0; overflow: hidden;
+    width: 40%; flex-shrink: 0; overflow: hidden;
     display: flex; flex-direction: column;
     border-right: 1px solid var(--border);
 }}
