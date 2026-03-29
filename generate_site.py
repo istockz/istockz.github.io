@@ -217,13 +217,55 @@ body {{
 /* Ticker Tape */
 .ticker-wrap {{
     background: #010409; border-bottom: 1px solid var(--border);
-    overflow: hidden; position: relative; height: 40px;
+    position: relative; height: 40px;
+}}
+.ticker-track-clip {{
+    overflow: hidden; width: 100%; height: 100%;
 }}
 .ticker-track {{
     display: flex; width: max-content;
     animation: ticker-scroll var(--ticker-duration, 120s) linear infinite;
 }}
-.ticker-track:hover {{ animation-play-state: paused; }}
+.ticker-track-clip:hover .ticker-track {{ animation-play-state: paused; }}
+
+/* Universal ticker search box */
+.ticker-search-box {{
+    position: absolute; right: 44px; top: 50%; transform: translateY(-50%); z-index: 100;
+}}
+.ticker-search-box.fs-search {{
+    right: 60px; top: 12px; transform: none;
+}}
+.ticker-wrap {{ position: relative; z-index: 50; }}
+.ticker-search-box input {{
+    width: 120px; height: 28px; background: rgba(22,27,34,0.9);
+    border: 1px solid var(--border); border-radius: 14px; color: var(--text-primary);
+    font-size: 11px; padding: 0 12px; outline: none;
+    transition: width 0.3s, border-color 0.2s, background 0.2s;
+    backdrop-filter: blur(8px);
+}}
+.ticker-search-box input:focus {{
+    width: 200px; border-color: var(--blue); background: rgba(22,27,34,0.95);
+}}
+.ticker-search-results {{
+    position: absolute; top: 34px; right: 0; width: 320px;
+    max-height: 400px; overflow-y: auto; background: #161b22;
+    border: 1px solid var(--border); border-radius: 8px;
+    display: none; z-index: 9999; box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+}}
+.ticker-search-results.active {{ display: block; }}
+.ticker-search-result {{
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; cursor: pointer; font-size: 12px;
+    border-bottom: 1px solid rgba(48,54,61,0.3); transition: background 0.15s;
+}}
+.ticker-search-result:hover {{ background: rgba(88,166,255,0.08); }}
+.ticker-search-result:last-child {{ border-bottom: none; }}
+.ticker-search-result .tsr-sym {{ color: var(--blue); font-weight: 700; min-width: 70px; font-family: 'SF Mono','Consolas',monospace; }}
+.ticker-search-result .tsr-name {{ color: var(--text-muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.ticker-search-result .tsr-price {{ color: var(--text-secondary); font-weight: 600; }}
+.ticker-search-result .tsr-chg {{ font-weight: 600; font-size: 11px; padding: 2px 6px; border-radius: 3px; margin-left: 4px; }}
+.ticker-search-result .tsr-chg.up {{ color: var(--green); background: var(--green-bg); }}
+.ticker-search-result .tsr-chg.down {{ color: var(--red); background: var(--red-bg); }}
 @keyframes ticker-scroll {{
     0%   {{ transform: translateX(0); }}
     100% {{ transform: translateX(-50%); }}
@@ -748,10 +790,266 @@ tbody td:nth-child(2) {{
     .chart-symbol {{ font-size: 15px; }}
     .chart-name {{ font-size: 12px; }}
 }}
+
+/* ============ Stock Detail Split-Panel View ============ */
+.stock-detail-view {{
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--bg-primary); z-index: 900;
+    display: none; flex-direction: column;
+}}
+.stock-detail-view.active {{ display: flex; }}
+
+.detail-ticker-bar {{
+    height: 36px; background: #010409;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    position: relative;
+}}
+.detail-ticker-clip {{
+    overflow: hidden; width: 100%; height: 100%;
+}}
+.detail-ticker-track {{
+    display: flex; width: max-content;
+    animation: ticker-scroll var(--detail-ticker-duration, 120s) linear infinite;
+}}
+.detail-ticker-clip:hover .detail-ticker-track {{ animation-play-state: paused; }}
+.detail-ticker-track.paused {{ animation-play-state: paused; }}
+/* Old detail-ticker-search CSS removed — using universal .ticker-search-box */
+.detail-ticker-speed {{
+    position: absolute; left: 8px; top: 4px; z-index: 5;
+    display: flex; align-items: center; gap: 4px;
+}}
+.detail-ticker-speed button {{
+    width: 24px; height: 24px; background: var(--bg-secondary);
+    border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary);
+    cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}}
+.detail-ticker-speed button:hover {{ color: var(--blue); border-color: var(--blue); }}
+.detail-ticker-speed .speed-label {{
+    font-size: 10px; color: var(--text-muted); min-width: 24px; text-align: center;
+}}
+.detail-ticker-item {{
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 16px; height: 36px; white-space: nowrap;
+    font-size: 12px; font-family: 'SF Mono','Consolas',monospace;
+    border-right: 1px solid var(--border); cursor: pointer;
+    transition: background 0.15s;
+}}
+.detail-ticker-item:hover {{ background: rgba(88,166,255,0.08); }}
+.detail-ticker-item.highlight {{
+    background: rgba(88,166,255,0.2); box-shadow: 0 0 12px rgba(88,166,255,0.3);
+    border-left: 2px solid var(--blue); border-right: 2px solid var(--blue);
+    animation: highlight-pulse 0.6s ease-in-out 3;
+}}
+@keyframes highlight-pulse {{
+    0%, 100% {{ background: rgba(88,166,255,0.15); }}
+    50% {{ background: rgba(88,166,255,0.3); }}
+}}
+.detail-ticker-sym {{ color: var(--text-primary); font-weight: 600; }}
+.detail-ticker-price {{ color: var(--text-secondary); }}
+.detail-ticker-chg {{ font-weight: 600; font-size: 11px; padding: 1px 5px; border-radius: 3px; }}
+.detail-ticker-chg.up   {{ color: var(--green); background: var(--green-bg); }}
+.detail-ticker-chg.down {{ color: var(--red);   background: var(--red-bg); }}
+.detail-ticker-chg.flat {{ color: var(--text-muted); }}
+
+.detail-toolbar {{
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+}}
+.detail-back-btn {{
+    background: var(--bg-tertiary); border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 6px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 14px; transition: all 0.2s;
+}}
+.detail-back-btn:hover {{ color: var(--text-primary); border-color: var(--blue); }}
+.detail-title {{ display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }}
+.detail-symbol {{ color: var(--blue); font-weight: 700; font-size: 18px; }}
+.detail-name {{ color: var(--text-secondary); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.detail-fs-buttons {{ display: flex; gap: 8px; flex-shrink: 0; }}
+.detail-fs-btn {{
+    background: var(--bg-tertiary); border: 1px solid var(--border);
+    color: var(--text-muted); padding: 5px 10px; border-radius: 5px;
+    cursor: pointer; font-size: 12px; transition: all 0.2s; white-space: nowrap;
+}}
+.detail-fs-btn:hover {{ color: var(--text-primary); border-color: var(--blue); }}
+
+.detail-split {{
+    flex: 1; display: flex; overflow: hidden; min-height: 0;
+}}
+.detail-data-pane {{
+    width: 380px; flex-shrink: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+}}
+.detail-data-scroll {{
+    flex: 1; overflow-y: auto;
+}}
+.detail-chart-pane {{
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+}}
+.detail-chart-container {{
+    flex: 1; min-height: 0;
+}}
+.detail-chart-legend {{
+    padding: 8px 16px; font-size: 12px; color: var(--text-secondary);
+    font-family: 'SF Mono','Consolas',monospace;
+    border-top: 1px solid var(--border); flex-shrink: 0;
+}}
+
+.detail-price-bar {{
+    display: flex;
+    gap: 16px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}}
+.detail-price-item {{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}}
+.detail-price-label {{
+    font-size: 9px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}}
+.detail-price-val {{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}}
+.detail-price-val.green {{ color: var(--green); }}
+.detail-price-val.red {{ color: var(--red); }}
+
+.detail-cards {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 12px;
+}}
+.detail-card {{
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+}}
+.detail-card-header {{
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}}
+.detail-card-row {{
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(48,54,61,0.3);
+}}
+.detail-card-row:last-child {{
+    border-bottom: none;
+}}
+.detail-card-label {{
+    color: var(--text-muted);
+    font-size: 11px;
+}}
+.detail-card-val {{
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 13px;
+}}
+.detail-card-val.green {{ color: var(--green); }}
+.detail-card-val.red {{ color: var(--red); }}
+
+.detail-range-bar {{
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    position: relative;
+    margin: 8px 12px;
+}}
+.detail-range-marker {{
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--blue);
+    border-radius: 50%;
+    top: -2px;
+}}
+.detail-range-labels {{
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}}
+
+.detail-tags {{
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px;
+    border-top: 1px solid var(--border);
+}}
+.detail-tags .fs-panel-tag {{
+    font-size: 11px; padding: 3px 9px; border-radius: 4px;
+    background: var(--bg-tertiary); color: var(--text-secondary);
+    border: 1px solid var(--border);
+}}
+.detail-about {{
+    padding: 12px 14px; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+    max-height: 140px; overflow-y: auto;
+}}
+.detail-about:empty {{ display: none; }}
+
+/* Fullscreen pane modes */
+.detail-split.fs-chart .detail-data-pane {{ display: none; }}
+.detail-split.fs-chart .detail-chart-pane {{ flex: 1; }}
+.detail-split.fs-data .detail-chart-pane {{ display: none; }}
+.detail-split.fs-data .detail-data-pane {{ width: 100%; border-right: none; }}
+
+@media (max-width: 768px) {{
+    .detail-split {{ flex-direction: column; }}
+    .detail-data-pane {{ width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }}
+    .detail-chart-pane {{ min-height: 250px; }}
+    .detail-toolbar {{ flex-wrap: wrap; gap: 8px; padding: 8px 12px; }}
+    .detail-fs-buttons {{ width: 100%; justify-content: flex-end; }}
+    .detail-symbol {{ font-size: 15px; }}
+    .detail-name {{ font-size: 12px; }}
+    .detail-cards {{ grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; }}
+}}
 </style>
 <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
+
+<!-- Login Gate -->
+<div id="login-gate" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0d1117;z-index:99999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:40px;width:340px;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,0.5);">
+        <div style="font-size:28px;font-weight:800;color:#58a6ff;margin-bottom:6px;font-family:'SF Mono','Consolas',monospace;letter-spacing:2px;">ISTOCKZ</div>
+        <div style="font-size:12px;color:#8b949e;margin-bottom:28px;">Indian Stock Market Dashboard</div>
+        <input id="login-pw" type="password" placeholder="Enter password"
+            style="width:100%;padding:12px 16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:12px;transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='#30363d'"
+            onkeydown="if(event.key==='Enter')loginCheck()" />
+        <button onclick="loginCheck()"
+            style="width:100%;padding:12px;background:#238636;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s;"
+            onmouseover="this.style.background='#2ea043'" onmouseout="this.style.background='#238636'">
+            Sign In
+        </button>
+        <div id="login-error" style="color:#f85149;font-size:12px;margin-top:12px;display:none;">Incorrect password</div>
+    </div>
+</div>
+<script>
+const _PH='a46e37e886f4931bddaa2c05d4a0d6531e614f0fdec369a3d86e0bf29ee4ca2f';
+async function _sha(s){{const e=new TextEncoder().encode(s);const h=await crypto.subtle.digest('SHA-256',e);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');}}
+async function loginCheck(){{const pw=document.getElementById('login-pw').value;const h=await _sha(pw);if(h===_PH){{document.getElementById('login-gate').style.display='none';sessionStorage.setItem('_auth','1');}}else{{const err=document.getElementById('login-error');err.style.display='block';document.getElementById('login-pw').style.borderColor='#f85149';setTimeout(()=>{{err.style.display='none';}},3000);}}}}
+if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate').style.display='none';}}
+</script>
 
 <!-- Header -->
 <header class="header">
@@ -768,15 +1066,27 @@ tbody td:nth-child(2) {{
 
 <!-- Ticker Tape -->
 <div class="ticker-wrap">
-    <div class="ticker-track" id="ticker-track"></div>
+    <div class="ticker-track-clip">
+        <div class="ticker-track" id="ticker-track"></div>
+    </div>
+    <div class="ticker-search-box" id="main-ticker-search">
+        <input type="text" placeholder="&#128269; Search..." oninput="tickerSearch(this.value, 'main')" onfocus="tickerSearch(this.value, 'main')" autocomplete="off" />
+        <div class="ticker-search-results" id="main-ticker-results"></div>
+    </div>
     <button class="ticker-zoom" onclick="openTickerOverlay()" title="Fullscreen Ticker">&#x26F6;</button>
 </div>
 
 <!-- Ticker Fullscreen Overlay -->
 <div class="ticker-overlay" id="ticker-overlay">
     <button class="ticker-overlay-close" onclick="closeTickerOverlay()">&times;</button>
-    <div style="overflow:hidden;">
-        <div class="ticker-overlay-track" id="fs-ticker-track"></div>
+    <div style="position:relative;">
+        <div style="overflow:hidden;width:100%;height:100%;">
+            <div class="ticker-overlay-track" id="fs-ticker-track"></div>
+        </div>
+        <div class="ticker-search-box fs-search" id="fs-ticker-search">
+            <input type="text" placeholder="&#128269; Search..." oninput="tickerSearch(this.value, 'fs')" onfocus="tickerSearch(this.value, 'fs')" autocomplete="off" />
+            <div class="ticker-search-results" id="fs-ticker-results"></div>
+        </div>
     </div>
     <div class="fs-stock-backdrop" id="fs-stock-backdrop" onclick="closeFsStockPanel()"></div>
     <div class="fs-stock-panel" id="fs-stock-panel">
@@ -966,6 +1276,53 @@ tbody td:nth-child(2) {{
     Istockz &mdash; Indian Stock Market EOD Analysis &bull; Data from Yahoo Finance via yfinance &bull; For educational purposes only
 </div>
 
+<!-- Stock Detail Split-Panel View -->
+<div id="stock-detail-view" class="stock-detail-view">
+    <div class="detail-ticker-bar" id="detail-ticker-bar">
+        <div class="detail-ticker-speed">
+            <button onclick="changeDetailSpeed(-1)">&#9664;</button>
+            <span class="speed-label" id="detail-speed-label">1x</span>
+            <button onclick="changeDetailSpeed(1)">&#9654;</button>
+        </div>
+        <div class="detail-ticker-clip">
+            <div class="detail-ticker-track" id="detail-ticker-track"></div>
+        </div>
+        <div class="ticker-search-box" id="detail-ticker-search" style="right:8px;top:4px;transform:none;">
+            <input type="text" id="detail-ticker-search-input" placeholder="&#128269; Search..."
+                   oninput="tickerSearch(this.value, 'detail')"
+                   onfocus="tickerSearch(this.value, 'detail')"
+                   autocomplete="off" />
+            <div class="ticker-search-results" id="detail-ticker-results"></div>
+        </div>
+    </div>
+    <div class="detail-toolbar">
+        <button class="detail-back-btn" onclick="closeStockDetail()">&#8592; Back</button>
+        <div class="detail-title">
+            <span class="detail-symbol" id="detail-symbol"></span>
+            <span class="detail-name" id="detail-name"></span>
+        </div>
+        <div class="detail-fs-buttons">
+            <button class="detail-fs-btn" onclick="detailFullscreen('both')" title="Fullscreen Both">&#x26F6; Full</button>
+            <button class="detail-fs-btn" onclick="detailFullscreen('data')" title="Fullscreen Data">&#128202; Data FS</button>
+            <button class="detail-fs-btn" onclick="detailFullscreen('chart')" title="Fullscreen Chart">&#128200; Chart FS</button>
+        </div>
+    </div>
+    <div class="detail-split" id="detail-split">
+        <div class="detail-data-pane" id="detail-data-pane">
+            <div class="detail-data-scroll">
+                <div class="detail-price-bar" id="detail-price-bar"></div>
+                <div class="detail-cards" id="detail-cards"></div>
+                <div class="detail-tags" id="detail-tags"></div>
+                <div class="detail-about" id="detail-about"></div>
+            </div>
+        </div>
+        <div class="detail-chart-pane" id="detail-chart-pane">
+            <div class="detail-chart-container" id="detail-chart-container"></div>
+            <div class="detail-chart-legend" id="detail-chart-legend"></div>
+        </div>
+    </div>
+</div>
+
 <script>
 // ==========================================
 // EMBEDDED DATA
@@ -1140,7 +1497,7 @@ function renderTicker(data) {{
         const sym = s.symbol.replace('.NS','').replace('.BO','');
         const sign = s.change_pct >= 0 ? '+' : '';
         const cls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
-        return `<div class="ticker-item">`
+        return `<div class="ticker-item" data-symbol="${{s.symbol}}">`
             + `<span class="ticker-symbol">${{sym}}</span>`
             + `<span class="ticker-price">${{fmt(s.close)}}</span>`
             + `<span class="ticker-change ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
@@ -1300,7 +1657,7 @@ function rowHTML(s) {{
         : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
     const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
     const safeName = (s.name || sym).replace(/'/g, "\\'");
-    return `<tr onclick="openChart('${{s.symbol}}','${{safeName}}')" style="cursor:pointer">
+    return `<tr onclick="openStockDetail('${{s.symbol}}')" style="cursor:pointer">
         <td>${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
         <td><span class="company-name">${{s.name || sym}}</span><span class="mobile-vol">Vol: ${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</span></td>
         <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
@@ -1529,7 +1886,7 @@ function openTickerOverlay() {{
         const sign = s.change_pct >= 0 ? '+' : '';
         const cls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
         const escaped = s.symbol.replace(/'/g, "\\'");
-        return `<div class="fs-ticker-item" style="cursor:pointer;" onclick="openFsStockPanel('${{escaped}}')">`
+        return `<div class="fs-ticker-item" data-symbol="${{s.symbol}}" style="cursor:pointer;" onclick="openStockDetail('${{escaped}}')">`
             + `<span class="fs-ticker-symbol">${{sym}}</span>`
             + `<span class="fs-ticker-price">${{fmt(s.close)}}</span>`
             + `<span class="fs-ticker-change ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
@@ -1843,8 +2200,561 @@ function closeFsStockPanel() {{
     if (fsPanelChart) {{ fsPanelChart.remove(); fsPanelChart = null; }}
 }}
 
+// ==========================================
+// STOCK DETAIL SPLIT-PANEL VIEW
+// ==========================================
+let detailViewOpen = false;
+let detailEntryPoint = null;   // 'ticker' | 'main'
+let detailFsMode = null;       // null | 'chart' | 'data'
+let detailChartInstance = null;
+
+function openStockDetail(symbol) {{
+    const stock = ALL_STOCKS.find(s => s.symbol === symbol);
+    if (!stock) return;
+
+    const sym = symbol.replace('.NS','').replace('.BO','');
+
+    // Remember where we came from
+    detailEntryPoint = tickerOverlayOpen ? 'ticker' : 'main';
+
+    // If from ticker overlay, hide it (we'll show it again on back)
+    if (tickerOverlayOpen) {{
+        document.getElementById('ticker-overlay').classList.remove('active');
+        tickerOverlayOpen = false;
+    }}
+
+    // Populate toolbar
+    document.getElementById('detail-symbol').textContent = sym;
+    document.getElementById('detail-name').textContent = stock.name || sym;
+
+    // Build detail ticker
+    buildDetailTicker();
+
+    // Show initial OHLC price bar
+    const sign = stock.change_pct >= 0 ? '+' : '';
+    const chgCls = stock.change_pct > 0 ? 'green' : stock.change_pct < 0 ? 'red' : '';
+    const change = stock.close - stock.open;
+    const changSign = change >= 0 ? '+' : '';
+
+    const priceBarItems = [
+        ['Open', fmt(stock.open), ''],
+        ['High', fmt(stock.high), ''],
+        ['Low', fmt(stock.low), ''],
+        ['Close', fmt(stock.close), ''],
+        ['Change', `${{changSign}}${{change.toFixed(2)}}`, change >= 0 ? 'green' : 'red'],
+        ['Chg %', `${{sign}}${{stock.change_pct.toFixed(2)}}%`, chgCls],
+        ['Volume', stock.volume ? stock.volume.toLocaleString() : '-', ''],
+    ];
+    document.getElementById('detail-price-bar').innerHTML = priceBarItems.map(([lbl, val, cls]) =>
+        `<div class="detail-price-item"><span class="detail-price-label">${{lbl}}</span><span class="detail-price-val ${{cls}}">${{val}}</span></div>`
+    ).join('');
+    document.getElementById('detail-cards').innerHTML = '<div style="padding:20px;color:var(--text-muted);text-align:center;grid-column:1/-1;">Loading fundamentals...</div>';
+
+    // Initial tags
+    const tags = [stock.sector, stock.market_cap_cat, stock.industry].filter(t => t && t !== 'Unknown');
+    document.getElementById('detail-tags').innerHTML = tags.map(t => `<span class="fs-panel-tag">${{t}}</span>`).join('');
+    document.getElementById('detail-about').textContent = '';
+
+    // Reset fullscreen mode
+    detailFsMode = null;
+    document.getElementById('detail-split').className = 'detail-split';
+
+    // Show the view
+    document.getElementById('stock-detail-view').classList.add('active');
+    document.body.style.overflow = 'hidden';
+    detailViewOpen = true;
+
+    // Chart loading placeholder
+    const chartContainer = document.getElementById('detail-chart-container');
+    chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);">Loading chart...</div>';
+    document.getElementById('detail-chart-legend').textContent = '';
+
+    // Destroy old chart
+    if (detailChartInstance) {{ detailChartInstance.remove(); detailChartInstance = null; }}
+
+    // Fetch chart data
+    const safeName = symbol.replace(/\\./g, '_');
+    const dataUrl = 'data/' + safeName + '.json';
+    let altSymbol = symbol.endsWith('.BO') ? symbol.replace('.BO', '.NS') : symbol.replace('.NS', '.BO');
+    const altUrl = 'data/' + altSymbol.replace(/\\./g, '_') + '.json';
+
+    fetch(dataUrl)
+        .then(r => {{
+            if (!r.ok) return fetch(altUrl);
+            return r;
+        }})
+        .then(r => {{
+            if (!r.ok) throw new Error('Data not found');
+            return r.json();
+        }})
+        .then(fileData => {{
+            const ohlcv = Array.isArray(fileData) ? fileData : (fileData.ohlcv || []);
+            const fund = Array.isArray(fileData) ? {{}} : (fileData.fundamentals || {{}});
+
+            // Render chart into detail container
+            chartContainer.innerHTML = '';
+            const legendEl = document.getElementById('detail-chart-legend');
+            renderDetailChart(ohlcv, chartContainer, legendEl);
+
+            // Render fundamentals if available
+            if (Object.keys(fund).length > 0) {{
+                renderDetailFundamentals(fund, stock);
+            }}
+        }})
+        .catch(() => {{
+            chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);">Chart data not available</div>';
+        }});
+}}
+
+function renderDetailChart(data, container, legendEl) {{
+    container.innerHTML = '';
+    if (detailChartInstance) {{ detailChartInstance.remove(); detailChartInstance = null; }}
+
+    detailChartInstance = LightweightCharts.createChart(container, {{
+        layout: {{
+            background: {{ color: '#0d1117' }},
+            textColor: '#8b949e',
+        }},
+        grid: {{
+            vertLines: {{ color: '#21262d' }},
+            horzLines: {{ color: '#21262d' }},
+        }},
+        crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
+        rightPriceScale: {{ borderColor: '#30363d' }},
+        timeScale: {{ borderColor: '#30363d', timeVisible: false }},
+        width: container.clientWidth,
+        height: container.clientHeight,
+    }});
+
+    const candleSeries = detailChartInstance.addCandlestickSeries({{
+        upColor: '#26a641', downColor: '#f85149',
+        borderUpColor: '#26a641', borderDownColor: '#f85149',
+        wickUpColor: '#26a641', wickDownColor: '#f85149',
+    }});
+    const candleData = data.map(d => ({{ time: d[0], open: d[1], high: d[2], low: d[3], close: d[4] }}));
+    candleSeries.setData(candleData);
+
+    const volumeSeries = detailChartInstance.addHistogramSeries({{
+        priceFormat: {{ type: 'volume' }},
+        priceScaleId: 'vol',
+    }});
+    detailChartInstance.priceScale('vol').applyOptions({{
+        scaleMargins: {{ top: 0.8, bottom: 0 }},
+    }});
+    const volData = data.map(d => ({{
+        time: d[0], value: d[5],
+        color: d[4] >= d[1] ? 'rgba(38,166,65,0.3)' : 'rgba(248,81,73,0.3)',
+    }}));
+    volumeSeries.setData(volData);
+    detailChartInstance.timeScale().fitContent();
+
+    detailChartInstance.subscribeCrosshairMove(param => {{
+        if (!param || !param.time) {{ legendEl.textContent = ''; return; }}
+        const candle = param.seriesData.get(candleSeries);
+        if (candle) {{
+            const chg = candle.close - candle.open;
+            const chgPct = ((chg / candle.open) * 100).toFixed(2);
+            const s = chg >= 0 ? '+' : '';
+            legendEl.textContent = 'O: ' + candle.open.toFixed(2) +
+                '  H: ' + candle.high.toFixed(2) +
+                '  L: ' + candle.low.toFixed(2) +
+                '  C: ' + candle.close.toFixed(2) +
+                '  ' + s + chgPct + '%';
+        }}
+    }});
+
+    new ResizeObserver(() => {{
+        if (detailChartInstance) {{
+            detailChartInstance.applyOptions({{
+                width: container.clientWidth,
+                height: container.clientHeight,
+            }});
+        }}
+    }}).observe(container);
+}}
+
+function closeStockDetail() {{
+    document.getElementById('stock-detail-view').classList.remove('active');
+    document.body.style.overflow = '';
+    detailViewOpen = false;
+
+    if (detailChartInstance) {{ detailChartInstance.remove(); detailChartInstance = null; }}
+
+    // If we came from ticker overlay, show it again
+    if (detailEntryPoint === 'ticker') {{
+        document.getElementById('ticker-overlay').classList.add('active');
+        tickerOverlayOpen = true;
+    }}
+
+    // Exit browser fullscreen if active
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {{}});
+
+    detailEntryPoint = null;
+    detailFsMode = null;
+}}
+
+// Detail ticker state
+let detailSpeedIndex = 3;
+const DETAIL_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
+const DETAIL_SPEED_LABELS = ['0.25x','0.5x','0.75x','1x','1.5x','2x','3x'];
+let detailBaseDuration = 120;
+
+function buildDetailTicker() {{
+    const track = document.getElementById('detail-ticker-track');
+    const data = globalFiltered.length > 0 ? globalFiltered : ALL_STOCKS;
+    if (data.length === 0) {{ track.innerHTML = ''; return; }}
+
+    const items = data.map(s => {{
+        const sym = s.symbol.replace('.NS','').replace('.BO','');
+        const sign = s.change_pct >= 0 ? '+' : '';
+        const cls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
+        const escaped = s.symbol.replace(/'/g, "\\'");
+        return `<div class="detail-ticker-item" data-symbol="${{s.symbol}}" onclick="openStockDetail('${{escaped}}')">`
+            + `<span class="detail-ticker-sym">${{sym}}</span>`
+            + `<span class="detail-ticker-price">${{fmt(s.close)}}</span>`
+            + `<span class="detail-ticker-chg ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
+            + `</div>`;
+    }}).join('');
+    track.innerHTML = items + items;
+    detailBaseDuration = Math.max(30, data.length * 0.8);
+    const dur = detailBaseDuration / DETAIL_SPEEDS[detailSpeedIndex];
+    track.parentElement.style.setProperty('--detail-ticker-duration', dur + 's');
+    // Reset speed label
+    detailSpeedIndex = 3;
+    document.getElementById('detail-speed-label').textContent = '1x';
+}}
+
+function changeDetailSpeed(dir) {{
+    detailSpeedIndex = Math.max(0, Math.min(DETAIL_SPEEDS.length - 1, detailSpeedIndex + dir));
+    const track = document.getElementById('detail-ticker-track');
+    // Get current animation progress to avoid restart
+    const computed = getComputedStyle(track);
+    const currentDur = parseFloat(computed.animationDuration) || detailBaseDuration;
+
+    const newDur = detailBaseDuration / DETAIL_SPEEDS[detailSpeedIndex];
+    track.parentElement.style.setProperty('--detail-ticker-duration', newDur + 's');
+
+    // Preserve position: briefly pause, update duration, resume
+    track.style.animationPlayState = 'paused';
+    void track.offsetWidth; // force reflow
+    track.style.animationDuration = newDur + 's';
+    track.style.animationPlayState = '';
+
+    document.getElementById('detail-speed-label').textContent = DETAIL_SPEED_LABELS[detailSpeedIndex];
+}}
+
+// Universal ticker search — works on main, fullscreen, and detail tickers
+function tickerSearch(query, context) {{
+    // Map context to IDs
+    const resultsId = context === 'main' ? 'main-ticker-results'
+                    : context === 'fs' ? 'fs-ticker-results'
+                    : 'detail-ticker-results';
+    const resultsDiv = document.getElementById(resultsId);
+    if (!resultsDiv) return;
+
+    if (!query || query.length < 1) {{
+        resultsDiv.classList.remove('active');
+        return;
+    }}
+
+    // Split query into words for fuzzy matching
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    const matches = ALL_STOCKS.filter(s => {{
+        const sym = s.symbol.replace('.NS','').replace('.BO','').toLowerCase();
+        const name = (s.name || '').toLowerCase();
+        const combined = sym + ' ' + name;
+        return words.every(w => combined.includes(w));
+    }}).slice(0, 15);
+
+    if (matches.length === 0) {{
+        resultsDiv.innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:12px;text-align:center;">No stocks found</div>';
+        resultsDiv.classList.add('active');
+        return;
+    }}
+
+    resultsDiv.innerHTML = matches.map(s => {{
+        const sym = s.symbol.replace('.NS','').replace('.BO','');
+        const escaped = s.symbol.replace(/'/g, "\\'");
+        const sign = s.change_pct >= 0 ? '+' : '';
+        const chgCls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : '';
+        return `<div class="ticker-search-result" onclick="tickerSearchSelect('${{escaped}}', '${{context}}')">`
+            + `<span class="tsr-sym">${{sym}}</span>`
+            + `<span class="tsr-name">${{s.name || ''}}</span>`
+            + `<span class="tsr-price">${{fmt(s.close)}}</span>`
+            + `<span class="tsr-chg ${{chgCls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
+            + `</div>`;
+    }}).join('');
+    resultsDiv.classList.add('active');
+}}
+
+// Handle selection from ticker search
+function tickerSearchSelect(symbol, context) {{
+    // Close all search results and clear inputs
+    document.querySelectorAll('.ticker-search-results').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.ticker-search-box input').forEach(el => el.value = '');
+
+    // Determine which track to scroll to
+    let trackId, containerId;
+    if (context === 'main') {{
+        trackId = 'ticker-track';
+        containerId = null;
+    }} else if (context === 'fs') {{
+        trackId = 'fs-ticker-track';
+        containerId = null;
+    }} else {{
+        trackId = 'detail-ticker-track';
+        containerId = 'detail-ticker-bar';
+    }}
+
+    const track = document.getElementById(trackId);
+    if (!track) return;
+
+    // Find the item in the ticker
+    const item = track.querySelector(`[data-symbol="${{symbol}}"]`);
+    if (item) {{
+        // Pause, scroll to center, highlight
+        track.style.animationPlayState = 'paused';
+
+        const parent = track.parentElement;
+        const parentWidth = parent.clientWidth;
+        const itemLeft = item.offsetLeft;
+        const itemWidth = item.offsetWidth;
+        const offset = Math.max(0, itemLeft - (parentWidth / 2) + (itemWidth / 2));
+
+        track.style.animation = 'none';
+        track.style.transform = `translateX(-${{offset}}px)`;
+
+        // Highlight
+        track.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+        item.classList.add('highlight');
+
+        // Resume after 3 seconds
+        setTimeout(() => {{
+            item.classList.remove('highlight');
+            track.style.transform = '';
+            track.style.animation = '';
+            track.style.animationPlayState = '';
+        }}, 3000);
+    }} else {{
+        // Stock not in current ticker — open its details instead
+        openStockDetail(symbol);
+    }}
+}}
+
+// Close all search results when clicking outside
+document.addEventListener('click', e => {{
+    if (!e.target.closest('.ticker-search-box')) {{
+        document.querySelectorAll('.ticker-search-results').forEach(el => el.classList.remove('active'));
+    }}
+}});
+
+function renderDetailFundamentals(fund, stock) {{
+    // --- Price bar update with OHLC + Change + Volume ---
+    const sign = stock.change_pct >= 0 ? '+' : '';
+    const chgCls = stock.change_pct > 0 ? 'green' : stock.change_pct < 0 ? 'red' : '';
+    const change = stock.close - stock.open;
+    const changSign = change >= 0 ? '+' : '';
+    const priceBarItems = [
+        ['Open', fmt(stock.open), ''],
+        ['High', fmt(stock.high), ''],
+        ['Low', fmt(stock.low), ''],
+        ['Close', fmt(stock.close), ''],
+        ['Change', `${{changSign}}${{change.toFixed(2)}}`, change >= 0 ? 'green' : 'red'],
+        ['Chg %', `${{sign}}${{stock.change_pct.toFixed(2)}}%`, chgCls],
+        ['Volume', stock.volume ? stock.volume.toLocaleString() : '-', ''],
+    ];
+    document.getElementById('detail-price-bar').innerHTML = priceBarItems.map(([lbl, val, cls]) =>
+        `<div class="detail-price-item"><span class="detail-price-label">${{lbl}}</span><span class="detail-price-val ${{cls}}">${{val}}</span></div>`
+    ).join('');
+
+    // --- Helper to get a value or null ---
+    function gv(key) {{ return fund[key] != null ? fund[key] : null; }}
+
+    // --- Helper to build a card row with optional color class ---
+    function cardRow(label, val) {{
+        if (val == null || val === '-') return null;
+        let cls = '';
+        if (typeof val === 'string' && val.includes('%')) {{
+            const num = parseFloat(val);
+            if (!isNaN(num)) cls = num > 0 ? 'green' : num < 0 ? 'red' : '';
+        }}
+        return `<div class="detail-card-row"><span class="detail-card-label">${{label}}</span><span class="detail-card-val ${{cls}}">${{val}}</span></div>`;
+    }}
+
+    // --- Helper to build a card from title + rows array ---
+    function buildCard(title, rows) {{
+        const validRows = rows.filter(r => r != null);
+        if (validRows.length === 0) return '';
+        return `<div class="detail-card"><div class="detail-card-header">${{title}}</div>${{validRows.join('')}}</div>`;
+    }}
+
+    // --- Card definitions ---
+    const cards = [];
+
+    // VALUATION
+    cards.push(buildCard('Valuation', [
+        cardRow('P/E (TTM)', fmtNum(fund.trailing_pe)),
+        cardRow('P/E (Fwd)', fmtNum(fund.forward_pe)),
+        cardRow('P/B Ratio', fmtNum(fund.price_to_book)),
+        cardRow('EPS (TTM)', fmtNum(fund.eps_trailing)),
+        cardRow('EPS (Fwd)', fmtNum(fund.eps_forward)),
+        cardRow('Book Value', fmtNum(fund.book_value)),
+    ]));
+
+    // MARGINS
+    cards.push(buildCard('Margins', [
+        cardRow('Operating', gv('operating_margins') != null ? fmtPct(fund.operating_margins) : null),
+        cardRow('Profit', gv('profit_margins') != null ? fmtPct(fund.profit_margins) : null),
+        cardRow('Gross', gv('gross_margins') != null ? fmtPct(fund.gross_margins) : null),
+        cardRow('EBITDA', gv('ebitda_margins') != null ? fmtPct(fund.ebitda_margins) : null),
+    ]));
+
+    // INCOME
+    cards.push(buildCard('Income', [
+        cardRow('Revenue', fund.revenue ? fmtCr(fund.revenue) : null),
+        cardRow('Rev Growth', gv('revenue_growth') != null ? fmtPct(fund.revenue_growth) : null),
+        cardRow('EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : null),
+        cardRow('Net Income', fund.net_income ? fmtCr(fund.net_income) : null),
+        cardRow('Earn Growth', gv('earnings_growth') != null ? fmtPct(fund.earnings_growth) : null),
+    ]));
+
+    // BALANCE SHEET
+    cards.push(buildCard('Balance Sheet', [
+        cardRow('Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : null),
+        cardRow('Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : null),
+        cardRow('Debt/Equity', fmtNum(fund.debt_to_equity)),
+        cardRow('Current Ratio', fmtNum(fund.current_ratio)),
+        cardRow('Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : null),
+    ]));
+
+    // DIVIDENDS
+    cards.push(buildCard('Dividends', [
+        cardRow('Div Rate', gv('dividend_rate') != null ? '\\u20b9' + fmtNum(fund.dividend_rate) : null),
+        cardRow('Div Yield', gv('dividend_yield') != null ? fmtPct(fund.dividend_yield) : null),
+        cardRow('Payout Ratio', gv('payout_ratio') != null ? fmtPct(fund.payout_ratio) : null),
+        cardRow('5Y Avg Yield', gv('five_yr_avg_div_yield') != null ? fund.five_yr_avg_div_yield.toFixed(2) + '%' : null),
+    ]));
+
+    // HOLDINGS
+    cards.push(buildCard('Holdings', [
+        cardRow('Insider Hold', gv('held_pct_insiders') != null ? fmtPct(fund.held_pct_insiders) : null),
+        cardRow('Inst Hold', gv('held_pct_institutions') != null ? fmtPct(fund.held_pct_institutions) : null),
+        cardRow('Shares Out', fund.shares_outstanding ? (fund.shares_outstanding / 1e7).toFixed(2) + ' Cr' : null),
+        cardRow('Float Shares', fund.float_shares ? (fund.float_shares / 1e7).toFixed(2) + ' Cr' : null),
+        cardRow('Employees', fund.full_time_employees ? fund.full_time_employees.toLocaleString() : null),
+    ]));
+
+    // 52W RANGE - special card with visual bar
+    if (fund.fifty_two_week_high != null && fund.fifty_two_week_low != null) {{
+        const low52 = fund.fifty_two_week_low;
+        const high52 = fund.fifty_two_week_high;
+        const curPrice = stock.close;
+        const range = high52 - low52;
+        const pct = range > 0 ? Math.max(0, Math.min(100, ((curPrice - low52) / range) * 100)) : 50;
+        const rangeCard = `<div class="detail-card"><div class="detail-card-header">52W Range</div>`
+            + `<div class="detail-range-bar"><div class="detail-range-marker" style="left:calc(${{pct.toFixed(1)}}% - 4px)"></div></div>`
+            + `<div class="detail-range-labels"><span>\\u20b9${{fmtNum(low52)}}</span><span style="color:var(--text-primary);font-weight:600;">\\u20b9${{fmtNum(curPrice)}}</span><span>\\u20b9${{fmtNum(high52)}}</span></div>`
+            + cardRow('50D Avg', fund.fifty_day_average ? '\\u20b9' + fmtNum(fund.fifty_day_average) : null)
+            + cardRow('200D Avg', fund.two_hundred_day_avg ? '\\u20b9' + fmtNum(fund.two_hundred_day_avg) : null)
+            + cardRow('Beta', fmtNum(fund.beta))
+            + `</div>`;
+        cards.push(rangeCard);
+    }}
+
+    // TARGETS
+    cards.push(buildCard('Targets', [
+        cardRow('Target High', gv('target_high_price') != null ? '\\u20b9' + fmtNum(fund.target_high_price) : null),
+        cardRow('Target Low', gv('target_low_price') != null ? '\\u20b9' + fmtNum(fund.target_low_price) : null),
+        cardRow('Target Mean', gv('target_mean_price') != null ? '\\u20b9' + fmtNum(fund.target_mean_price) : null),
+        cardRow('Recommendation', fund.recommendation ? fund.recommendation.toUpperCase() : null),
+        cardRow('Analysts', fund.num_analyst_opinions || null),
+    ]));
+
+    // Render all non-empty cards
+    document.getElementById('detail-cards').innerHTML = cards.filter(c => c !== '').join('');
+
+    // Tags
+    const tags = [stock.sector, stock.market_cap_cat, stock.industry, stock.exchange].filter(t => t && t !== 'Unknown');
+    if (fund.website) tags.push(fund.website.replace('https://','').replace('http://',''));
+    if (fund.city) tags.push(fund.city);
+    document.getElementById('detail-tags').innerHTML = tags.map(t => `<span class="fs-panel-tag">${{t}}</span>`).join('');
+
+    // Update header with long name
+    if (fund.long_name) {{
+        document.getElementById('detail-name').textContent = fund.long_name;
+    }}
+
+    // About section
+    const aboutEl = document.getElementById('detail-about');
+    if (fund.long_business_summary) {{
+        const text = fund.long_business_summary;
+        aboutEl.textContent = text.length > 500 ? text.substring(0, 500) + '...' : text;
+    }} else {{
+        aboutEl.textContent = '';
+    }}
+}}
+
+function detailFullscreen(mode) {{
+    const splitEl = document.getElementById('detail-split');
+    const viewEl = document.getElementById('stock-detail-view');
+
+    // Reset classes
+    splitEl.classList.remove('fs-chart', 'fs-data');
+
+    if (mode === 'chart') {{
+        splitEl.classList.add('fs-chart');
+        detailFsMode = 'chart';
+    }} else if (mode === 'data') {{
+        splitEl.classList.add('fs-data');
+        detailFsMode = 'data';
+    }} else {{
+        detailFsMode = null;
+    }}
+
+    // Request browser fullscreen on the detail view
+    if (!document.fullscreenElement) {{
+        viewEl.requestFullscreen().catch(() => {{}});
+    }}
+
+    // Re-fit chart after layout change
+    setTimeout(() => {{
+        if (detailChartInstance) {{
+            const container = document.getElementById('detail-chart-container');
+            detailChartInstance.applyOptions({{
+                width: container.clientWidth,
+                height: container.clientHeight,
+            }});
+            detailChartInstance.timeScale().fitContent();
+        }}
+    }}, 100);
+}}
+
+// Restore detail split when exiting fullscreen
+document.addEventListener('fullscreenchange', () => {{
+    if (!document.fullscreenElement && detailViewOpen) {{
+        const splitEl = document.getElementById('detail-split');
+        splitEl.classList.remove('fs-chart', 'fs-data');
+        detailFsMode = null;
+        // Re-fit chart
+        setTimeout(() => {{
+            if (detailChartInstance) {{
+                const container = document.getElementById('detail-chart-container');
+                detailChartInstance.applyOptions({{
+                    width: container.clientWidth,
+                    height: container.clientHeight,
+                }});
+                detailChartInstance.timeScale().fitContent();
+            }}
+        }}, 100);
+    }}
+}});
+
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {{
+    // Stock detail view takes priority
+    if (detailViewOpen) {{
+        if (e.key === 'Escape') {{ closeStockDetail(); e.preventDefault(); return; }}
+    }}
     if (tickerOverlayOpen) {{
         if (fsPanelOpen) {{
             if (e.key === 'Escape') {{ closeFsStockPanel(); e.preventDefault(); return; }}
