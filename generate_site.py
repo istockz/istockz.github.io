@@ -354,6 +354,11 @@ tbody td:nth-child(2) {{
     color: var(--text-secondary); font-weight: 400; max-width: 180px;
     overflow: hidden; text-overflow: ellipsis;
 }}
+/* Mobile-only elements - hidden on desktop */
+.mobile-vol {{ display: none; }}
+.mobile-chg-abs {{ display: none; }}
+.mobile-sort {{ display: none; }}
+
 .positive {{ color: var(--green) !important; }}
 .negative {{ color: var(--red) !important; }}
 .change-cell {{
@@ -398,48 +403,137 @@ tbody td:nth-child(2) {{
     font-size: 12px; border-top: 1px solid var(--border);
 }}
 
+/* Tab bar scrollable */
+.price-tabs {{
+    display: flex; gap: 8px; flex-wrap: wrap;
+}}
+
 /* Responsive */
 @media (max-width: 768px) {{
     .movers-section {{ grid-template-columns: 1fr; }}
     .header-content {{ flex-direction: column; text-align: center; }}
-    .stats-grid {{ flex-direction: column; }}
-    .controls {{ flex-direction: column; }}
+    .stats-grid {{ flex-direction: row; flex-wrap: wrap; gap: 8px; }}
+    .stat-card {{ min-width: 0; flex: 1 1 45%; padding: 8px 12px; }}
+    .stat-card .label {{ font-size: 9px; }}
+    .stat-card .value {{ font-size: 16px; }}
+    .controls {{ flex-direction: column; padding: 0 12px !important; }}
     .search-box {{ min-width: 100%; }}
     .filter-bar {{ flex-direction: column; align-items: stretch; }}
     .filter-group {{ flex-wrap: wrap; }}
     .filter-divider {{ display: none; }}
     .pagination {{ display: none; }}
 
-    /* Table: show only Symbol, Company, Close, Chg% on mobile */
-    table {{ table-layout: auto; }}
+    /* Tab bar: horizontal scroll */
+    .price-tabs {{
+        flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        gap: 6px; padding-bottom: 4px;
+    }}
+    .price-tabs .filter-btn {{ white-space: nowrap; flex-shrink: 0; font-size: 12px; padding: 8px 12px; }}
+
+    /* Mobile sort dropdown */
+    .mobile-sort {{ display: block; width: 100%; }}
+    .mobile-sort .filter-select {{ width: 100%; }}
+
+    /* Hide table header + non-card columns */
+    table {{ table-layout: auto; border-collapse: separate; border-spacing: 0 6px; }}
     colgroup {{ display: none; }}
-    /* Hide: Sector(3), Cap(4), Exch(5), Open(6), High(7), Low(8), Change(11), Volume(12) */
-    thead th:nth-child(3),
-    thead th:nth-child(4),
-    thead th:nth-child(5),
-    thead th:nth-child(6),
-    thead th:nth-child(7),
-    thead th:nth-child(8),
-    thead th:nth-child(11),
-    thead th:nth-child(12),
+    thead {{ display: none !important; }}
+
+    /* Each row becomes a card */
+    tbody tr {{
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto;
+        background: var(--bg-secondary); border: 1px solid var(--border);
+        border-radius: 10px; padding: 14px 16px; margin: 0;
+        cursor: pointer; transition: background 0.15s;
+        row-gap: 4px;
+    }}
+    tbody tr:hover {{ background: var(--bg-tertiary); }}
+
+    /* Hide columns: Sector(3), Cap(4), Exch(5), Open(6), High(7), Low(8) */
     tbody td:nth-child(3),
     tbody td:nth-child(4),
     tbody td:nth-child(5),
     tbody td:nth-child(6),
     tbody td:nth-child(7),
-    tbody td:nth-child(8),
-    tbody td:nth-child(11),
+    tbody td:nth-child(8) {{
+        display: none !important;
+    }}
+
+    /* Row 1 Left: Symbol (bold, large) */
+    tbody td:nth-child(1) {{
+        grid-row: 1; grid-column: 1;
+        text-align: left !important;
+        font-size: 16px; font-weight: 700; color: var(--text-primary);
+        padding: 0; border: none; white-space: nowrap;
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    }}
+    tbody td:nth-child(1) span {{ display: none; }} /* hide chart icon on mobile */
+
+    /* Row 1 Right: Close price (bold, large) */
+    tbody td:nth-child(9) {{
+        grid-row: 1; grid-column: 2;
+        text-align: right !important;
+        font-size: 16px; font-weight: 700; color: var(--text-primary);
+        padding: 0; border: none;
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    }}
+
+    /* Row 2 Left: Company name + Volume (small, muted) */
+    tbody td:nth-child(2) {{
+        grid-row: 2; grid-column: 1;
+        text-align: left !important;
+        font-size: 12px; color: var(--text-muted) !important;
+        padding: 0; border: none; max-width: none;
+        overflow: hidden; text-overflow: ellipsis;
+    }}
+
+    /* Row 2 Right: Change amount + Chg% */
+    tbody td:nth-child(10) {{
+        grid-row: 2; grid-column: 2;
+        text-align: right !important;
+        padding: 0; border: none;
+        display: flex !important; align-items: center; justify-content: flex-end; gap: 6px;
+    }}
+    tbody td:nth-child(10) .change-cell {{
+        font-size: 12px; min-width: auto; padding: 2px 6px;
+    }}
+
+    /* Change abs (col 11) - show inline next to chg% */
+    tbody td:nth-child(11) {{
+        display: none !important;
+    }}
+
+    /* Volume (col 12) - hide, show via JS in company cell */
     tbody td:nth-child(12) {{
         display: none !important;
     }}
-    thead th {{ font-size: 11px; padding: 10px 8px; }}
-    tbody td {{ padding: 10px 8px; font-size: 13px; }}
-    tbody td:nth-child(2) {{ max-width: 120px; }}
-    .table-container {{ padding: 0 12px; }}
-    .controls {{ padding: 0 12px; }}
+
+    /* Show volume inline in company cell on mobile */
+    .mobile-vol {{
+        display: block; font-size: 11px; color: var(--text-muted);
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+        margin-top: 2px;
+    }}
+    .company-name {{ display: block; }}
+    /* Show change amount next to chg% */
+    .mobile-chg-abs {{
+        display: inline; font-size: 12px; margin-right: 6px;
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-weight: 600;
+    }}
+    tbody td:nth-child(10) .change-cell {{
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    }}
+
+    .table-container {{ padding: 0 10px; overflow-x: visible; }}
     .global-filters {{ padding: 0 12px; }}
-    .stats-bar {{ padding: 12px; }}
+    .stats-bar {{ padding: 10px 12px; }}
     .movers-section {{ padding: 0 12px; }}
+
+    /* Ticker smaller on mobile */
+    .ticker-wrap {{ height: 36px; }}
+    .ticker-item {{ font-size: 11px; padding: 0 12px; height: 36px; }}
 }}
 
 /* Chart Modal */
@@ -581,9 +675,24 @@ tbody td:nth-child(2) {{
         <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 105.3 14.7l4.5 4.5a1 1 0 001.4-1.4l-4.5-4.5A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg>
         <input type="text" id="search" placeholder="Search by symbol or company name..." autocomplete="off">
     </div>
-    <button class="filter-btn active" id="btn-all" onclick="setPriceFilter('all')">All</button>
-    <button class="filter-btn" id="btn-gainers" onclick="setPriceFilter('gainers')">Gainers</button>
-    <button class="filter-btn" id="btn-losers" onclick="setPriceFilter('losers')">Losers</button>
+    <div class="price-tabs">
+        <button class="filter-btn active" id="btn-all" onclick="setPriceFilter('all')">All</button>
+        <button class="filter-btn" id="btn-gainers" onclick="setPriceFilter('gainers')">Gainers</button>
+        <button class="filter-btn" id="btn-losers" onclick="setPriceFilter('losers')">Losers</button>
+        <button class="filter-btn" id="btn-volume" onclick="setPriceFilter('volume')">By Volume</button>
+        <button class="filter-btn" id="btn-value" onclick="setPriceFilter('value')">By Value</button>
+    </div>
+    <div class="mobile-sort" id="mobile-sort">
+        <select class="filter-select" id="mobile-sort-select" onchange="mobileSort(this.value)">
+            <option value="symbol-asc">Name A-Z</option>
+            <option value="symbol-desc">Name Z-A</option>
+            <option value="close-desc">Price High-Low</option>
+            <option value="close-asc">Price Low-High</option>
+            <option value="change_pct_abs-desc" selected>Change% Max</option>
+            <option value="change_pct_abs-asc">Change% Min</option>
+            <option value="volume-desc">Volume High-Low</option>
+        </select>
+    </div>
     <span class="result-count" id="result-count"></span>
 </div>
 
@@ -738,7 +847,7 @@ function resetFilters() {{
     document.getElementById('search').value = '';
     priceFilter = 'all';
     activeSector = 'all'; activeCap = 'all'; activeExchange = 'all';
-    ['btn-all','btn-gainers','btn-losers'].forEach(id => document.getElementById(id).classList.remove('active'));
+    ['btn-all','btn-gainers','btn-losers','btn-volume','btn-value'].forEach(id => document.getElementById(id).classList.remove('active'));
     document.getElementById('btn-all').classList.add('active');
     currentPage = 1;
     applyGlobalFilter();
@@ -780,7 +889,7 @@ function applyGlobalFilter() {{
 function setPriceFilter(f) {{
     priceFilter = f;
     currentPage = 1;
-    ['btn-all','btn-gainers','btn-losers'].forEach(id => document.getElementById(id).classList.remove('active'));
+    ['btn-all','btn-gainers','btn-losers','btn-volume','btn-value'].forEach(id => document.getElementById(id).classList.remove('active'));
     document.getElementById('btn-' + f).classList.add('active');
     applyLocalFilters();
 }}
@@ -793,6 +902,21 @@ function applyLocalFilters() {{
         if (priceFilter === 'losers'  && s.change_pct >= 0) return false;
         return true;
     }});
+
+    // Special sort modes for By Volume and By Value
+    if (priceFilter === 'volume') {{
+        filteredData.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+        renderTable();
+        renderPagination();
+        return;
+    }}
+    if (priceFilter === 'value') {{
+        filteredData.sort((a, b) => ((b.close || 0) * (b.volume || 0)) - ((a.close || 0) * (a.volume || 0)));
+        renderTable();
+        renderPagination();
+        return;
+    }}
+
     applySort();
 }}
 
@@ -880,9 +1004,23 @@ function sortTable(col) {{
     applySort();
 }}
 
+function mobileSort(val) {{
+    const [col, dir] = val.split('-');
+    sortCol = col;
+    sortDir = dir;
+    currentPage = 1;
+    applySort();
+}}
+
 function applySort() {{
     filteredData.sort((a, b) => {{
-        let va = a[sortCol], vb = b[sortCol];
+        let va, vb;
+        if (sortCol === 'change_pct_abs') {{
+            va = Math.abs(a.change_pct || 0);
+            vb = Math.abs(b.change_pct || 0);
+        }} else {{
+            va = a[sortCol]; vb = b[sortCol];
+        }}
         if (typeof va === 'string') va = va.toLowerCase();
         if (typeof vb === 'string') vb = vb.toLowerCase();
         if (va < vb) return sortDir === 'asc' ? -1 : 1;
@@ -952,9 +1090,9 @@ function rowHTML(s) {{
         : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
     const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
     const safeName = (s.name || sym).replace(/'/g, "\\'");
-    return `<tr>
-        <td style="cursor:pointer" onclick="openChart('${{s.symbol}}','${{safeName}}')">${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
-        <td>${{s.name || sym}}</td>
+    return `<tr onclick="openChart('${{s.symbol}}','${{safeName}}')" style="cursor:pointer">
+        <td>${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
+        <td><span class="company-name">${{s.name || sym}}</span><span class="mobile-vol">Vol: ${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</span></td>
         <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
         <td style="text-align:center"><span class="cap-badge ${{capCls}}">${{capLabel}}</span></td>
         <td style="text-align:center;font-family:sans-serif;font-size:11px">${{exchBadge}}</td>
@@ -962,7 +1100,7 @@ function rowHTML(s) {{
         <td>${{fmt(s.high)}}</td>
         <td>${{fmt(s.low)}}</td>
         <td>${{fmt(s.close)}}</td>
-        <td><span class="change-cell ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span></td>
+        <td><span class="mobile-chg-abs ${{cls}}">${{sign}}${{fmt(s.change_abs)}}</span><span class="change-cell ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span></td>
         <td class="${{cls}}">${{sign}}${{fmt(s.change_abs)}}</td>
         <td>${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</td>
     </tr>`;
