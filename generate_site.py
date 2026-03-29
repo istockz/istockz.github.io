@@ -637,6 +637,7 @@ tbody td:nth-child(2) {{
     animation: ticker-scroll var(--fs-ticker-duration, 180s) linear infinite;
 }}
 .ticker-overlay-track.paused {{ animation-play-state: paused; }}
+.ticker-overlay-body:hover .ticker-overlay-track {{ animation-play-state: paused; }}
 .ticker-overlay .fs-ticker-item {{
     display: flex; align-items: center; gap: 14px;
     padding: 0 40px; white-space: nowrap; height: 60px;
@@ -1497,7 +1498,8 @@ function renderTicker(data) {{
         const sym = s.symbol.replace('.NS','').replace('.BO','');
         const sign = s.change_pct >= 0 ? '+' : '';
         const cls = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
-        return `<div class="ticker-item" data-symbol="${{s.symbol}}">`
+        const escaped = s.symbol.replace(/'/g, "\\\\'");
+        return `<div class="ticker-item" data-symbol="${{s.symbol}}" style="cursor:pointer;" onclick="openStockDetail('${{escaped}}')">`
             + `<span class="ticker-symbol">${{sym}}</span>`
             + `<span class="ticker-price">${{fmt(s.close)}}</span>`
             + `<span class="ticker-change ${{cls}}">${{sign}}${{s.change_pct.toFixed(2)}}%</span>`
