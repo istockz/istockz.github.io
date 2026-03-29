@@ -210,9 +210,70 @@ body {{
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 12px;
 }}
-.logo {{ font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: -0.5px; }}
-.logo span {{ color: var(--text-muted); font-weight: 400; font-size: 13px; margin-left: 8px; }}
+.logo {{ font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: -0.5px; display: flex; align-items: center; gap: 12px; }}
+.logo span {{ color: var(--text-muted); font-weight: 400; font-size: 13px; }}
 .header-meta {{ color: var(--text-secondary); font-size: 13px; text-align: right; }}
+
+/* Hamburger Menu */
+.hamburger {{
+    width: 36px; height: 36px; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; gap: 5px; cursor: pointer;
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px; transition: all 0.2s;
+}}
+.hamburger:hover {{ border-color: var(--blue); background: rgba(88,166,255,0.08); }}
+.hamburger span {{
+    display: block; width: 18px; height: 2px; background: var(--text-secondary);
+    border-radius: 1px; transition: all 0.3s;
+}}
+.hamburger.active span:nth-child(1) {{ transform: rotate(45deg) translate(5px, 5px); }}
+.hamburger.active span:nth-child(2) {{ opacity: 0; }}
+.hamburger.active span:nth-child(3) {{ transform: rotate(-45deg) translate(5px, -5px); }}
+
+.nav-menu {{
+    position: fixed; top: 0; left: -320px; width: 300px; height: 100vh;
+    background: var(--bg-secondary); border-right: 1px solid var(--border);
+    z-index: 10001; transition: left 0.3s ease; overflow-y: auto;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+}}
+.nav-menu.open {{ left: 0; }}
+.nav-backdrop {{
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 10000; display: none;
+}}
+.nav-backdrop.open {{ display: block; }}
+.nav-header {{
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+}}
+.nav-header h3 {{ color: var(--blue); font-size: 18px; margin: 0; font-weight: 700; }}
+.nav-close {{
+    background: none; border: none; color: var(--text-muted); font-size: 24px;
+    cursor: pointer; padding: 0; line-height: 1;
+}}
+.nav-close:hover {{ color: var(--red); }}
+.nav-section {{
+    border-bottom: 1px solid var(--border);
+}}
+.nav-section-title {{
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--text-muted); padding: 14px 20px 6px; font-weight: 600;
+}}
+.nav-item {{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px; cursor: pointer; transition: all 0.15s;
+    color: var(--text-secondary); font-size: 13px;
+}}
+.nav-item:hover {{ background: rgba(88,166,255,0.08); color: var(--text-primary); }}
+.nav-item.active {{ background: rgba(88,166,255,0.12); color: var(--blue); border-left: 3px solid var(--blue); padding-left: 17px; }}
+.nav-item .nav-count {{
+    font-size: 11px; color: var(--text-muted); background: var(--bg-tertiary);
+    padding: 2px 8px; border-radius: 10px; font-weight: 500;
+}}
+.nav-item .nav-icon {{ margin-right: 10px; font-size: 14px; }}
+.nav-item-all {{
+    color: var(--blue); font-weight: 600;
+}}
 
 /* Ticker Tape */
 .ticker-wrap {{
@@ -1097,10 +1158,40 @@ async function loginCheck(){{const pw=document.getElementById('login-pw').value;
 if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate').style.display='none';}}
 </script>
 
+<!-- Nav Menu -->
+<div class="nav-backdrop" id="nav-backdrop" onclick="closeNavMenu()"></div>
+<nav class="nav-menu" id="nav-menu">
+    <div class="nav-header">
+        <h3>Stock Groups</h3>
+        <button class="nav-close" onclick="closeNavMenu()">&times;</button>
+    </div>
+    <div class="nav-section">
+        <div class="nav-item nav-item-all active" onclick="applyNavFilter('all')">
+            <span>All Stocks</span>
+            <span class="nav-count" id="nav-count-all"></span>
+        </div>
+    </div>
+    <div class="nav-section" id="nav-cap-section">
+        <div class="nav-section-title">Market Cap</div>
+    </div>
+    <div class="nav-section" id="nav-sector-section">
+        <div class="nav-section-title">Sectors</div>
+    </div>
+    <div class="nav-section" id="nav-group-section">
+        <div class="nav-section-title">Business Groups</div>
+    </div>
+    <div class="nav-section" id="nav-index-section">
+        <div class="nav-section-title">Indices</div>
+    </div>
+</nav>
+
 <!-- Header -->
 <header class="header">
     <div class="header-content">
         <div class="logo">
+            <button class="hamburger" id="hamburger" onclick="toggleNavMenu()">
+                <span></span><span></span><span></span>
+            </button>
             ISTOCKZ <span>Indian Stock Market &mdash; End-of-Day Prices</span>
         </div>
         <div class="header-meta">
@@ -1377,8 +1468,45 @@ const SECTORS_LIST = {sectors_json};
 const CAPS_LIST    = {caps_json};
 
 // ==========================================
+// BUSINESS GROUPS (Indian conglomerates)
+// ==========================================
+const BUSINESS_GROUPS = {{
+    'Tata Group': ['TATACONSUM','TATACHEM','TATACOMM','TATAELXSI','TATAINVEST','TATAMOTORS','TATAMTRDVR','TATAPOWER','TATASTEEL','TATASPONGE','TATATECH','TCS','TITAN','VOLTAS','IHCL','TRENT','NELCO','RALLIS','TMRVL','TATASTEELLP','TATASTLLP','TATAMETALI','TATACONSUM','TINPLATE'],
+    'Adani Group': ['ADANIENT','ADANIGREEN','ADANIPORTS','ADANIPOWER','ADANITRANS','ATGL','AWL','ADANIENSOL','ADANIWILMAR','NDTV','ACC','AMBUJACEMENT'],
+    'Reliance Group': ['RELIANCE','JIOFIN','JUST DIAL','RELINFRA','RPOWER','RCOM','RNAVAL'],
+    'Birla Group': ['GRASIM','ULTRATECH','HINDALCO','ABCAPITAL','ABFRL','ABSLAMC','CENTURYTEX','CENTURY'],
+    'Bajaj Group': ['BAJAJ-AUTO','BAJAJFINSV','BAJFINANCE','BAJAJHLDNG','BAJAJCON','BAJAJELEC','BAJAJHFL'],
+    'Mahindra Group': ['M&M','MAHINDCIE','MHRIL','TECHM','MAHLOG','MAHLIFE','MAHSCOOTER','MFSL'],
+    'Godrej Group': ['GODREJCP','GODREJPROP','GODREJIND','GODREJAGRO','ASTEC'],
+    'JSW Group': ['JSWSTEEL','JSPL','JSWENERGY','JSWINFRA','JSWHL'],
+    'Vedanta Group': ['VEDL','HINDZINC','STERLITE','SESAGOA'],
+    'L&T Group': ['LT','LTTS','LTIM','LTTECHFIN','LTFOODS'],
+    'HDFC Group': ['HDFCBANK','HDFCLIFE','HDFCAMC','HDFCERGO'],
+    'ICICI Group': ['ICICIBANK','ICICIGI','ICICIPRULI','ICICISEC'],
+    'SBI Group': ['SBIN','SBILIFE','SBICARD','SBICAP'],
+    'Kotak Group': ['KOTAKBANK','KOTAKMAH'],
+    'Wipro Group': ['WIPRO'],
+    'Infosys Group': ['INFY'],
+    'ITC Group': ['ITC','ITCHOTELS'],
+    'Aditya Birla Group': ['ABCAPITAL','ABFRL','GRASIM','HINDALCO','ULTRATECH','VODAFONE','IDEA'],
+    'Murugappa Group': ['TIINDIA','CGTL','CHOLAMANDALAM','CARBORUNIV','SHANTHI'],
+    'TVS Group': ['TVSMOTOR','TVSSRICHAK','TVSELECT','SUNDRMFAST'],
+    'Hero Group': ['HEROMOTOCO','HEROPROP'],
+    'Piramal Group': ['PEL','PIRPHYTO','PIRAMAL'],
+    'Hindustan Unilever': ['HINDUNILVR'],
+    'Bharti Group': ['BHARTIARTL','BHARTIHEXA'],
+}};
+
+// Nifty index constituents (approximate - top stocks)
+const INDEX_GROUPS = {{
+    'Nifty 50': ['ADANIENT','ADANIPORTS','APOLLOHOSP','ASIANPAINT','AXISBANK','BAJAJ-AUTO','BAJFINANCE','BAJAJFINSV','BPCL','BHARTIARTL','BRITANNIA','CIPLA','COALINDIA','DIVISLAB','DRREDDY','EICHERMOT','GRASIM','HCLTECH','HDFCBANK','HDFCLIFE','HEROMOTOCO','HINDALCO','HINDUNILVR','ICICIBANK','ITC','INDUSINDBK','INFY','JSWSTEEL','KOTAKBANK','LT','M&M','MARUTI','NTPC','NESTLEIND','ONGC','POWERGRID','RELIANCE','SBILIFE','SBIN','SUNPHARMA','TCS','TATACONSUM','TATAMOTORS','TATASTEEL','TECHM','TITAN','ULTRACEMCO','WIPRO','SHRIRAMFIN','TRENT'],
+    'Bank Nifty': ['HDFCBANK','ICICIBANK','KOTAKBANK','AXISBANK','SBIN','INDUSINDBK','BANDHANBNK','AUBANK','IDFCFIRSTB','FEDERALBNK','PNB','BANKBARODA'],
+}};
+
+// ==========================================
 // STATE
 // ==========================================
+let navFilterActive = null;  // Current nav group filter
 let globalFiltered = [...ALL_STOCKS];   // After sector/cap/exchange dropdown
 let filteredData   = [...ALL_STOCKS];   // After search + price filter too
 let currentPage = 1;
@@ -1399,6 +1527,7 @@ let activeExchange = 'all';
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {{
     populateDropdowns();
+    buildNavMenu();
     applyGlobalFilter();
     document.getElementById('search').addEventListener('input', () => {{ currentPage = 1; applyLocalFilters(); }});
 
@@ -1440,6 +1569,113 @@ function populateDropdowns() {{
 }}
 
 // ==========================================
+// NAV MENU (hamburger)
+// ==========================================
+function toggleNavMenu() {{
+    const menu = document.getElementById('nav-menu');
+    const backdrop = document.getElementById('nav-backdrop');
+    const hamburger = document.getElementById('hamburger');
+    menu.classList.toggle('open');
+    backdrop.classList.toggle('open');
+    hamburger.classList.toggle('active');
+}}
+function closeNavMenu() {{
+    document.getElementById('nav-menu').classList.remove('open');
+    document.getElementById('nav-backdrop').classList.remove('open');
+    document.getElementById('hamburger').classList.remove('active');
+}}
+
+function buildNavMenu() {{
+    // Count stocks per group
+    function countMatch(filterFn) {{
+        return ALL_STOCKS.filter(filterFn).length;
+    }}
+    function symClean(s) {{ return s.symbol.replace('.NS','').replace('.BO',''); }}
+
+    // All stocks count
+    document.getElementById('nav-count-all').textContent = ALL_STOCKS.length;
+
+    // Market Cap section
+    const capSection = document.getElementById('nav-cap-section');
+    const capIcons = {{ 'Large Cap': '\u25c9', 'Mid Cap': '\u25ce', 'Small Cap': '\u25cb', 'Micro Cap': '\u00b7' }};
+    CAPS_LIST.forEach(cap => {{
+        const count = countMatch(s => s.market_cap_cat === cap);
+        if (count === 0) return;
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.setAttribute('data-filter', 'cap:' + cap);
+        div.innerHTML = `<span>${{capIcons[cap] || ''}} ${{cap}}</span><span class="nav-count">${{count}}</span>`;
+        div.onclick = () => applyNavFilter('cap:' + cap);
+        capSection.appendChild(div);
+    }});
+
+    // Sectors section
+    const secSection = document.getElementById('nav-sector-section');
+    const secIcons = {{}};
+    SECTORS_LIST.forEach(sec => {{
+        const count = countMatch(s => s.sector === sec);
+        if (count === 0) return;
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.setAttribute('data-filter', 'sector:' + sec);
+        div.innerHTML = `<span>${{sec}}</span><span class="nav-count">${{count}}</span>`;
+        div.onclick = () => applyNavFilter('sector:' + sec);
+        secSection.appendChild(div);
+    }});
+
+    // Business Groups section
+    const grpSection = document.getElementById('nav-group-section');
+    Object.keys(BUSINESS_GROUPS).sort().forEach(grp => {{
+        const symbols = BUSINESS_GROUPS[grp];
+        const count = countMatch(s => symbols.includes(symClean(s)));
+        if (count === 0) return;
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.setAttribute('data-filter', 'group:' + grp);
+        div.innerHTML = `<span>${{grp}}</span><span class="nav-count">${{count}}</span>`;
+        div.onclick = () => applyNavFilter('group:' + grp);
+        grpSection.appendChild(div);
+    }});
+
+    // Index Groups section
+    const idxSection = document.getElementById('nav-index-section');
+    Object.keys(INDEX_GROUPS).forEach(idx => {{
+        const symbols = INDEX_GROUPS[idx];
+        const count = countMatch(s => symbols.includes(symClean(s)));
+        if (count === 0) return;
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.setAttribute('data-filter', 'index:' + idx);
+        div.innerHTML = `<span>${{idx}}</span><span class="nav-count">${{count}}</span>`;
+        div.onclick = () => applyNavFilter('index:' + idx);
+        idxSection.appendChild(div);
+    }});
+}}
+
+function applyNavFilter(filter) {{
+    navFilterActive = filter;
+
+    // Update active state in nav
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (filter === 'all') {{
+        document.querySelector('.nav-item-all').classList.add('active');
+    }} else {{
+        const target = document.querySelector(`.nav-item[data-filter="${{filter}}"]`);
+        if (target) target.classList.add('active');
+    }}
+
+    // Reset dropdown filters when changing nav group
+    document.getElementById('filter-sector').value = 'all';
+    document.getElementById('filter-cap').value = 'all';
+    document.getElementById('filter-exchange').value = 'all';
+    activeSector = 'all'; activeCap = 'all'; activeExchange = 'all';
+
+    currentPage = 1;
+    applyGlobalFilter();
+    closeNavMenu();
+}}
+
+// ==========================================
 // GLOBAL FILTER (sector / cap / exchange)
 // Affects: ticker, stats, movers, table
 // ==========================================
@@ -1458,6 +1694,9 @@ function resetFilters() {{
     document.getElementById('search').value = '';
     priceFilter = 'all';
     activeSector = 'all'; activeCap = 'all'; activeExchange = 'all';
+    navFilterActive = null;
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.querySelector('.nav-item-all').classList.add('active');
     ['btn-all','btn-gainers','btn-losers','btn-volume','btn-value'].forEach(id => document.getElementById(id).classList.remove('active'));
     document.getElementById('btn-all').classList.add('active');
     currentPage = 1;
@@ -1465,8 +1704,35 @@ function resetFilters() {{
 }}
 
 function applyGlobalFilter() {{
+    // Step 0: apply nav menu group filter first
+    let base = ALL_STOCKS;
+    if (navFilterActive && navFilterActive !== 'all') {{
+        const f = navFilterActive;
+        if (f.startsWith('cap:')) {{
+            const cap = f.replace('cap:','');
+            base = ALL_STOCKS.filter(s => s.market_cap_cat === cap);
+        }} else if (f.startsWith('sector:')) {{
+            const sec = f.replace('sector:','');
+            base = ALL_STOCKS.filter(s => s.sector === sec);
+        }} else if (f.startsWith('group:')) {{
+            const grp = f.replace('group:','');
+            const symbols = BUSINESS_GROUPS[grp] || [];
+            base = ALL_STOCKS.filter(s => {{
+                const sym = s.symbol.replace('.NS','').replace('.BO','');
+                return symbols.includes(sym);
+            }});
+        }} else if (f.startsWith('index:')) {{
+            const idx = f.replace('index:','');
+            const symbols = INDEX_GROUPS[idx] || [];
+            base = ALL_STOCKS.filter(s => {{
+                const sym = s.symbol.replace('.NS','').replace('.BO','');
+                return symbols.includes(sym);
+            }});
+        }}
+    }}
+
     // Step 1: filter by dropdowns
-    globalFiltered = ALL_STOCKS.filter(s => {{
+    globalFiltered = base.filter(s => {{
         if (activeSector !== 'all' && s.sector !== activeSector) return false;
         if (activeCap !== 'all' && s.market_cap_cat !== activeCap) return false;
         if (activeExchange !== 'all' && !(s.exchange || '').includes(activeExchange)) return false;
@@ -1475,6 +1741,13 @@ function applyGlobalFilter() {{
 
     // Update active tag
     const parts = [];
+    if (navFilterActive && navFilterActive !== 'all') {{
+        const f = navFilterActive;
+        if (f.startsWith('cap:')) parts.push(f.replace('cap:',''));
+        else if (f.startsWith('sector:')) parts.push(f.replace('sector:',''));
+        else if (f.startsWith('group:')) parts.push(f.replace('group:',''));
+        else if (f.startsWith('index:')) parts.push(f.replace('index:',''));
+    }}
     if (activeSector !== 'all') parts.push(activeSector);
     if (activeCap !== 'all') parts.push(activeCap);
     if (activeExchange !== 'all') parts.push(activeExchange);
