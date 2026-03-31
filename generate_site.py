@@ -138,7 +138,10 @@ def generate_website():
     unchanged = total - gainers - losers
     avg_change = round(sum(p["change_pct"] for p in prices) / total, 2) if total else 0
 
-    data_date = prices[0]["date"] if prices else "N/A"
+    # Use the most common date (mode) as the market date
+    from collections import Counter
+    date_counts = Counter(p["date"] for p in prices)
+    data_date = date_counts.most_common(1)[0][0] if prices else "N/A"
 
     stats = {
         "total": total,
