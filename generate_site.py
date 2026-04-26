@@ -1036,7 +1036,8 @@ tbody td:nth-child(2) {{
     flex: 1; overflow-y: auto;
 }}
 .detail-chart-pane {{
-    flex: 1; display: flex; flex-direction: column; min-width: 0; padding-right: 8px;
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    padding-right: 18px; padding-left: 4px;
 }}
 .detail-chart-container {{
     flex: 1; min-height: 0; overflow: hidden;
@@ -2880,7 +2881,11 @@ function renderDetailChart(data, container, legendEl) {{
             horzLines: {{ color: '#21262d' }},
         }},
         crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
-        rightPriceScale: {{ borderColor: '#30363d' }},
+        rightPriceScale: {{
+            borderColor: '#30363d',
+            scaleMargins: {{ top: 0.05, bottom: 0.05 }},
+            minimumWidth: 70,
+        }},
         timeScale: {{ borderColor: '#30363d', timeVisible: false }},
         width: container.clientWidth,
         height: container.clientHeight,
