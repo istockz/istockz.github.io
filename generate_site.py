@@ -984,6 +984,38 @@ tbody td:nth-child(2) {{
 }}
 .detail-fs-btn:hover {{ color: var(--text-primary); border-color: var(--blue); }}
 
+/* Slideshow controls in detail toolbar */
+.slideshow-controls {{
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    background: rgba(88,166,255,0.08); padding: 4px 10px; border-radius: 6px;
+    border: 1px solid rgba(88,166,255,0.3);
+}}
+.slideshow-btn {{
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 4px 9px; border-radius: 4px;
+    cursor: pointer; font-size: 13px; transition: all 0.15s; white-space: nowrap;
+}}
+.slideshow-btn:hover {{ color: var(--blue); border-color: var(--blue); background: rgba(88,166,255,0.1); }}
+.slideshow-play {{ background: rgba(88,166,255,0.15); color: var(--blue); border-color: var(--blue); font-size: 11px; min-width: 38px; }}
+.slideshow-stop {{ color: #f0a070; border-color: #f0a070; font-size: 11px; }}
+.slideshow-stop:hover {{ color: var(--red); border-color: var(--red); background: rgba(248,81,73,0.1); }}
+.slideshow-progress {{
+    color: var(--text-muted); font-size: 12px; padding: 0 6px;
+    font-family: 'SF Mono','Consolas',monospace; min-width: 50px; text-align: center;
+}}
+.slideshow-timer {{
+    color: var(--blue); font-size: 12px; font-weight: 600;
+    font-family: 'SF Mono','Consolas',monospace; min-width: 28px; text-align: center;
+}}
+
+/* Slideshow start button in ticker overlay */
+.slideshow-start-btn {{
+    background: rgba(88,166,255,0.12) !important; color: var(--blue) !important;
+    border: 1px solid var(--blue) !important; padding: 5px 12px !important;
+    font-weight: 600; font-size: 12px;
+}}
+.slideshow-start-btn:hover {{ background: rgba(88,166,255,0.2) !important; }}
+
 .detail-split {{
     flex: 1; display: flex; overflow: hidden; min-height: 0;
 }}
@@ -1257,6 +1289,11 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
             <span class="ctrl-val" id="fs-font-val">M</span>
             <button class="ctrl-btn" onclick="changeTickerFontSize(1)">A+</button>
         </div>
+        <div class="ctrl-group">
+            <button class="ctrl-btn slideshow-start-btn" onclick="startSlideshow()" title="Auto-cycle through stocks in detail view">
+                &#9655; Slideshow
+            </button>
+        </div>
     </div>
     <div class="ticker-overlay-hints">
         <kbd>Space</kbd> Pause &nbsp; <kbd>F</kbd> Fullscreen &nbsp; <kbd>Esc</kbd> Close
@@ -1442,6 +1479,14 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
         <div class="detail-title">
             <span class="detail-symbol" id="detail-symbol"></span>
             <span class="detail-name" id="detail-name"></span>
+        </div>
+        <div class="slideshow-controls" id="slideshow-controls" style="display:none;">
+            <button class="slideshow-btn" onclick="slideshowPrev()" title="Previous">&#9664;</button>
+            <button class="slideshow-btn slideshow-play" id="slideshow-play-btn" onclick="slideshowToggle()" title="Pause">&#10074;&#10074;</button>
+            <button class="slideshow-btn" onclick="slideshowNext()" title="Next">&#9654;</button>
+            <span class="slideshow-progress" id="slideshow-progress">1 / 1</span>
+            <span class="slideshow-timer" id="slideshow-timer">8s</span>
+            <button class="slideshow-btn slideshow-stop" onclick="stopSlideshow()" title="Exit slideshow">&times; Exit</button>
         </div>
         <div class="detail-fs-buttons">
             <button class="detail-fs-btn" onclick="detailFullscreen('both')" title="Fullscreen Both">&#x26F6; Full</button>
@@ -2608,14 +2653,121 @@ let detailEntryPoint = null;   // 'ticker' | 'main'
 let detailFsMode = null;       // null | 'chart' | 'data'
 let detailChartInstance = null;
 
+// ==========================================
+// SLIDESHOW MODE (auto-cycle stock detail views)
+// ==========================================
+let slideshowMode = false;
+let slideshowList = [];
+let slideshowIndex = 0;
+let slideshowTimer = null;
+let slideshowCountdown = null;
+let slideshowPaused = false;
+const SLIDESHOW_INTERVAL = 8;  // seconds per stock
+let slideshowSecondsLeft = SLIDESHOW_INTERVAL;
+
+function startSlideshow() {{
+    // Use currently filtered stocks (same as ticker)
+    slideshowList = (globalFiltered.length > 0 ? globalFiltered : ALL_STOCKS).map(s => s.symbol);
+    if (slideshowList.length === 0) return;
+
+    slideshowMode = true;
+    slideshowIndex = 0;
+    slideshowPaused = false;
+
+    // Open first stock — openStockDetail handles transition from ticker overlay
+    openStockDetail(slideshowList[0]);
+
+    // Show slideshow controls in detail toolbar after a tick (so detail view is ready)
+    setTimeout(() => {{
+        const ctrls = document.getElementById('slideshow-controls');
+        if (ctrls) ctrls.style.display = 'flex';
+        updateSlideshowProgress();
+        startSlideshowCountdown();
+    }}, 100);
+}}
+
+function stopSlideshow() {{
+    slideshowMode = false;
+    if (slideshowTimer) {{ clearInterval(slideshowTimer); slideshowTimer = null; }}
+    if (slideshowCountdown) {{ clearInterval(slideshowCountdown); slideshowCountdown = null; }}
+
+    const ctrls = document.getElementById('slideshow-controls');
+    if (ctrls) ctrls.style.display = 'none';
+
+    // Close detail view (returns to ticker overlay since we entered from ticker)
+    closeStockDetail();
+}}
+
+function slideshowNext() {{
+    if (!slideshowMode || slideshowList.length === 0) return;
+    slideshowIndex = (slideshowIndex + 1) % slideshowList.length;
+    openStockDetail(slideshowList[slideshowIndex]);
+    setTimeout(() => {{
+        document.getElementById('slideshow-controls').style.display = 'flex';
+        updateSlideshowProgress();
+        resetSlideshowCountdown();
+    }}, 50);
+}}
+
+function slideshowPrev() {{
+    if (!slideshowMode || slideshowList.length === 0) return;
+    slideshowIndex = (slideshowIndex - 1 + slideshowList.length) % slideshowList.length;
+    openStockDetail(slideshowList[slideshowIndex]);
+    setTimeout(() => {{
+        document.getElementById('slideshow-controls').style.display = 'flex';
+        updateSlideshowProgress();
+        resetSlideshowCountdown();
+    }}, 50);
+}}
+
+function slideshowToggle() {{
+    slideshowPaused = !slideshowPaused;
+    const btn = document.getElementById('slideshow-play-btn');
+    if (btn) {{
+        btn.innerHTML = slideshowPaused ? '&#9654;' : '&#10074;&#10074;';
+        btn.title = slideshowPaused ? 'Resume' : 'Pause';
+    }}
+}}
+
+function startSlideshowCountdown() {{
+    if (slideshowCountdown) clearInterval(slideshowCountdown);
+    slideshowSecondsLeft = SLIDESHOW_INTERVAL;
+    updateSlideshowTimer();
+    slideshowCountdown = setInterval(() => {{
+        if (slideshowPaused) return;
+        slideshowSecondsLeft--;
+        updateSlideshowTimer();
+        if (slideshowSecondsLeft <= 0) {{
+            slideshowNext();
+        }}
+    }}, 1000);
+}}
+
+function resetSlideshowCountdown() {{
+    slideshowSecondsLeft = SLIDESHOW_INTERVAL;
+    updateSlideshowTimer();
+}}
+
+function updateSlideshowTimer() {{
+    const el = document.getElementById('slideshow-timer');
+    if (el) el.textContent = slideshowSecondsLeft + 's';
+}}
+
+function updateSlideshowProgress() {{
+    const el = document.getElementById('slideshow-progress');
+    if (el) el.textContent = (slideshowIndex + 1) + ' / ' + slideshowList.length;
+}}
+
 function openStockDetail(symbol) {{
     const stock = ALL_STOCKS.find(s => s.symbol === symbol);
     if (!stock) return;
 
     const sym = symbol.replace('.NS','').replace('.BO','');
 
-    // Remember where we came from
-    detailEntryPoint = tickerOverlayOpen ? 'ticker' : 'main';
+    // Remember where we came from (preserve during slideshow advances)
+    if (!slideshowMode || !detailEntryPoint) {{
+        detailEntryPoint = tickerOverlayOpen ? 'ticker' : 'main';
+    }}
 
     // If from ticker overlay, hide it (we'll show it again on back)
     if (tickerOverlayOpen) {{
@@ -2774,6 +2926,15 @@ function renderDetailChart(data, container, legendEl) {{
 }}
 
 function closeStockDetail() {{
+    // If slideshow is active, stop it (but skip recursive close — set flag first)
+    if (slideshowMode) {{
+        slideshowMode = false;
+        if (slideshowTimer) {{ clearInterval(slideshowTimer); slideshowTimer = null; }}
+        if (slideshowCountdown) {{ clearInterval(slideshowCountdown); slideshowCountdown = null; }}
+        const ctrls = document.getElementById('slideshow-controls');
+        if (ctrls) ctrls.style.display = 'none';
+    }}
+
     document.getElementById('stock-detail-view').classList.remove('active');
     document.body.style.overflow = '';
     detailViewOpen = false;
@@ -3151,8 +3312,16 @@ document.addEventListener('fullscreenchange', () => {{
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {{
+    // Don't capture keys when typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
     // Stock detail view takes priority
     if (detailViewOpen) {{
+        if (slideshowMode) {{
+            if (e.key === 'ArrowRight') {{ slideshowNext(); e.preventDefault(); return; }}
+            if (e.key === 'ArrowLeft') {{ slideshowPrev(); e.preventDefault(); return; }}
+            if (e.key === ' ' || e.code === 'Space') {{ slideshowToggle(); e.preventDefault(); return; }}
+        }}
         if (e.key === 'Escape') {{ closeStockDetail(); e.preventDefault(); return; }}
     }}
     if (tickerOverlayOpen) {{
