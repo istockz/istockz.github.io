@@ -1008,13 +1008,21 @@ tbody td:nth-child(2) {{
     font-family: 'SF Mono','Consolas',monospace; min-width: 28px; text-align: center;
 }}
 
-/* Slideshow start button in ticker overlay */
+/* Slideshow start button in ticker overlay - circular play button */
 .slideshow-start-btn {{
-    background: rgba(88,166,255,0.12) !important; color: var(--blue) !important;
-    border: 1px solid var(--blue) !important; padding: 5px 12px !important;
-    font-weight: 600; font-size: 12px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--blue); color: #fff;
+    border: none; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(88,166,255,0.3);
 }}
-.slideshow-start-btn:hover {{ background: rgba(88,166,255,0.2) !important; }}
+.slideshow-start-btn:hover {{
+    background: #79b8ff;
+    transform: scale(1.08);
+    box-shadow: 0 3px 12px rgba(88,166,255,0.5);
+}}
+.slideshow-start-btn svg {{ margin-left: 2px; }}
 
 .detail-split {{
     flex: 1; display: flex; overflow: hidden; min-height: 0;
@@ -1290,8 +1298,8 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
             <button class="ctrl-btn" onclick="changeTickerFontSize(1)">A+</button>
         </div>
         <div class="ctrl-group">
-            <button class="ctrl-btn slideshow-start-btn" onclick="startSlideshow()" title="Auto-cycle through stocks in detail view">
-                &#9655; Slideshow
+            <button class="slideshow-start-btn" onclick="startSlideshow()" title="Slideshow — auto-cycle through stocks in detail view">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;"><path d="M8 5v14l11-7z"/></svg>
             </button>
         </div>
     </div>
