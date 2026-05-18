@@ -518,20 +518,26 @@ tbody td:nth-child(2) {{
 .cap-small {{ color: #d29922; background: rgba(210,153,34,0.12); }}
 .cap-micro {{ color: #8b949e; background: rgba(139,148,158,0.1); }}
 
-/* Pagination */
-.pagination {{
-    max-width: 1400px; margin: 0 auto 40px; padding: 0 24px;
-    display: flex; justify-content: center; align-items: center; gap: 8px;
+/* Pagination - hidden (replaced with infinite scroll) */
+.pagination {{ display: none; }}
+.page-btn, .page-info {{ display: none; }}
+
+/* Infinite scroll loader */
+.scroll-loader {{
+    text-align: center; padding: 20px;
+    color: var(--text-muted); font-size: 13px;
+    max-width: 1400px; margin: 0 auto;
 }}
-.page-btn {{
-    padding: 8px 14px; background: var(--bg-secondary); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--text-secondary); font-size: 13px;
-    cursor: pointer; transition: all 0.2s;
+.scroll-loader.loading::after {{
+    content: ' ...';
+    animation: dots 1.4s steps(4, end) infinite;
 }}
-.page-btn:hover {{ background: var(--bg-tertiary); color: var(--text-primary); }}
-.page-btn.active {{ background: var(--blue); color: #fff; border-color: var(--blue); }}
-.page-btn:disabled {{ opacity: 0.3; cursor: not-allowed; }}
-.page-info {{ color: var(--text-muted); font-size: 13px; margin: 0 12px; }}
+@keyframes dots {{
+    0%, 20% {{ content: ' .'; }}
+    40% {{ content: ' ..'; }}
+    60% {{ content: ' ...'; }}
+    80%, 100% {{ content: ''; }}
+}}
 
 /* Footer */
 .footer {{
@@ -557,7 +563,6 @@ tbody td:nth-child(2) {{
     .filter-bar {{ flex-direction: column; align-items: stretch; }}
     .filter-group {{ flex-wrap: wrap; }}
     .filter-divider {{ display: none; }}
-    .pagination {{ display: none; }}
 
     /* Tab bar: horizontal scroll */
     .price-tabs {{
@@ -1593,12 +1598,12 @@ document.addEventListener('DOMContentLoaded', () => {{
     applyGlobalFilter();
     document.getElementById('search').addEventListener('input', () => {{ currentPage = 1; applyLocalFilters(); }});
 
-    // Infinite scroll for mobile
+    // Infinite scroll (desktop + mobile)
     window.addEventListener('scroll', () => {{
-        if (!isMobile || isLoadingMore) return;
+        if (isLoadingMore) return;
         const scrollBottom = window.innerHeight + window.scrollY;
         const docHeight = document.documentElement.scrollHeight;
-        if (scrollBottom >= docHeight - 300) {{
+        if (scrollBottom >= docHeight - 400) {{
             const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
             if (currentPage < totalPages) {{
                 isLoadingMore = true;
@@ -1992,35 +1997,17 @@ function appendTablePage() {{
 }}
 
 function renderTable() {{
+    // Always start with first page; rest loaded via infinite scroll (desktop + mobile)
     const tbody = document.getElementById('stock-table');
-
-    if (isMobile) {{
-        // Mobile: render first page, rest loaded via scroll
-        currentPage = 1;
-        const pageData = filteredData.slice(0, PAGE_SIZE);
-        const totalShown = Math.min(PAGE_SIZE, filteredData.length);
-        document.getElementById('result-count').textContent =
-            `Showing 1-${{totalShown}} of ${{filteredData.length.toLocaleString()}}`;
-        if (pageData.length === 0) {{
-            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-muted)">No stocks found</td></tr>';
-            return;
-        }}
-        tbody.innerHTML = pageData.map(s => rowHTML(s)).join('');
-        return;
-    }}
-
-    // Desktop: paginated
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageData = filteredData.slice(start, start + PAGE_SIZE);
-
+    currentPage = 1;
+    const pageData = filteredData.slice(0, PAGE_SIZE);
+    const totalShown = Math.min(PAGE_SIZE, filteredData.length);
     document.getElementById('result-count').textContent =
-        `Showing ${{Math.min(start + 1, filteredData.length)}}-${{Math.min(start + PAGE_SIZE, filteredData.length)}} of ${{filteredData.length.toLocaleString()}}`;
-
+        `Showing 1-${{totalShown}} of ${{filteredData.length.toLocaleString()}}`;
     if (pageData.length === 0) {{
         tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-muted)">No stocks found</td></tr>';
         return;
     }}
-
     tbody.innerHTML = pageData.map(s => rowHTML(s)).join('');
 }}
 
@@ -2062,8 +2049,12 @@ function fmt(n) {{
 // PAGINATION
 // ==========================================
 function renderPagination() {{
-    const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+    // Pagination replaced with infinite scroll — keep stub for compat
     const pag = document.getElementById('pagination');
+    if (pag) pag.innerHTML = '';
+    return;
+    // eslint-disable-next-line no-unreachable
+    const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
     if (totalPages <= 1) {{ pag.innerHTML = ''; return; }}
 
     let html = `<button class="page-btn" onclick="goPage(1)" ${{currentPage === 1 ? 'disabled' : ''}}>&laquo;</button>`;
