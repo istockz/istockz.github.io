@@ -539,6 +539,18 @@ tbody td:nth-child(2) {{
     80%, 100% {{ content: ''; }}
 }}
 
+/* Copy symbol button (in table row) */
+.copy-btn {{
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent; border-radius: 4px;
+    color: var(--text-muted); cursor: pointer; padding: 3px 5px;
+    margin-left: 6px; vertical-align: middle;
+    opacity: 0; transition: all 0.15s;
+}}
+tr:hover .copy-btn {{ opacity: 0.6; }}
+.copy-btn:hover {{ opacity: 1 !important; color: var(--blue); border-color: var(--blue); background: rgba(88,166,255,0.08); }}
+.copy-btn.copied {{ color: var(--green); border-color: var(--green); opacity: 1 !important; background: rgba(38,166,65,0.1); }}
+
 /* Stock description tooltip on row hover */
 .stock-tooltip {{
     position: fixed; display: none; z-index: 9999;
@@ -2065,7 +2077,7 @@ function rowHTML(s) {{
     const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
     const safeName = (s.name || sym).replace(/'/g, "\\'");
     return `<tr data-symbol="${{s.symbol}}" onclick="openStockDetail('${{s.symbol}}')" style="cursor:pointer">
-        <td>${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
+        <td>${{sym}}<button class="copy-btn" onclick="event.stopPropagation();copySymbol(this,'${{sym}}')" title="Copy symbol"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
         <td><span class="company-name">${{s.name || sym}}</span><span class="mobile-vol">Vol: ${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</span></td>
         <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
         <td style="text-align:center"><span class="cap-badge ${{capCls}}">${{capLabel}}</span></td>
@@ -2083,6 +2095,34 @@ function rowHTML(s) {{
 function fmt(n) {{
     if (n == null) return '-';
     return Number(n).toLocaleString('en-IN', {{ minimumFractionDigits: 2, maximumFractionDigits: 2 }});
+}}
+
+// Copy stock symbol to clipboard, brief visual feedback on the button
+function copySymbol(btn, sym) {{
+    const text = sym;
+    const showOk = () => {{
+        const original = btn.innerHTML;
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => {{
+            btn.classList.remove('copied');
+            btn.innerHTML = original;
+        }}, 1200);
+    }};
+    if (navigator.clipboard && navigator.clipboard.writeText) {{
+        navigator.clipboard.writeText(text).then(showOk).catch(() => {{
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = text; document.body.appendChild(ta);
+            ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta); showOk();
+        }});
+    }} else {{
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); showOk();
+    }}
 }}
 
 // ==========================================
