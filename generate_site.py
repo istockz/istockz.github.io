@@ -539,6 +539,42 @@ tbody td:nth-child(2) {{
     80%, 100% {{ content: ''; }}
 }}
 
+/* Stock description tooltip on row hover */
+.stock-tooltip {{
+    position: fixed; display: none; z-index: 9999;
+    background: #161b22; color: var(--text-primary);
+    border: 1px solid var(--blue); border-radius: 8px;
+    padding: 14px 16px; max-width: 420px; min-width: 280px;
+    font-size: 12.5px; line-height: 1.5;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(88,166,255,0.15);
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+}}
+.stock-tooltip.visible {{ display: block; animation: tipFadeIn 0.15s ease-out; }}
+@keyframes tipFadeIn {{
+    from {{ opacity: 0; transform: translateY(-4px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+.stock-tooltip .tip-header {{
+    color: var(--blue); font-weight: 700; font-size: 13px;
+    margin-bottom: 4px; letter-spacing: 0.3px;
+}}
+.stock-tooltip .tip-subtitle {{
+    color: var(--text-muted); font-size: 11px; margin-bottom: 8px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+}}
+.stock-tooltip .tip-tag {{
+    background: var(--bg-tertiary); padding: 1px 7px; border-radius: 3px;
+    color: var(--text-secondary); font-size: 10.5px;
+}}
+.stock-tooltip .tip-body {{
+    color: var(--text-secondary); font-size: 12px;
+    max-height: 180px; overflow: hidden;
+}}
+.stock-tooltip .tip-loading {{
+    color: var(--text-muted); font-style: italic; font-size: 11.5px;
+}}
+
 /* Footer */
 .footer {{
     text-align: center; padding: 20px; color: var(--text-muted);
@@ -1446,6 +1482,9 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
     </table>
 </div>
 
+<!-- Hover tooltip for stock descriptions -->
+<div id="stock-tooltip" class="stock-tooltip"></div>
+
 <!-- Pagination -->
 <div class="pagination" id="pagination"></div>
 
@@ -1596,6 +1635,7 @@ document.addEventListener('DOMContentLoaded', () => {{
     populateDropdowns();
     buildNavMenu();
     applyGlobalFilter();
+    setupTableTooltip();
     document.getElementById('search').addEventListener('input', () => {{ currentPage = 1; applyLocalFilters(); }});
 
     // Infinite scroll (desktop + mobile)
@@ -2024,7 +2064,7 @@ function rowHTML(s) {{
         : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
     const capLabel = s.market_cap_cat === 'Unknown' ? '-' : s.market_cap_cat.replace(' Cap','');
     const safeName = (s.name || sym).replace(/'/g, "\\'");
-    return `<tr onclick="openStockDetail('${{s.symbol}}')" style="cursor:pointer">
+    return `<tr data-symbol="${{s.symbol}}" onclick="openStockDetail('${{s.symbol}}')" style="cursor:pointer">
         <td>${{sym}} <span style="font-size:10px;color:var(--text-muted);margin-left:2px">&#128200;</span></td>
         <td><span class="company-name">${{s.name || sym}}</span><span class="mobile-vol">Vol: ${{s.volume ? s.volume.toLocaleString('en-IN') : '0'}}</span></td>
         <td class="sector-cell">${{s.sector === 'Unknown' ? '-' : s.sector}}</td>
@@ -2043,6 +2083,146 @@ function rowHTML(s) {{
 function fmt(n) {{
     if (n == null) return '-';
     return Number(n).toLocaleString('en-IN', {{ minimumFractionDigits: 2, maximumFractionDigits: 2 }});
+}}
+
+// ==========================================
+// HOVER TOOLTIP — stock description on row hover
+// ==========================================
+const tooltipCache = {{}};   // symbol -> {{ summary, fundamentals }}
+let tooltipTimer = null;
+let tooltipHoverSymbol = null;
+
+function setupTableTooltip() {{
+    const tbody = document.getElementById('stock-table');
+    const tip = document.getElementById('stock-tooltip');
+    if (!tbody || !tip) return;
+
+    tbody.addEventListener('mouseover', e => {{
+        const row = e.target.closest('tr');
+        if (!row || !row.dataset.symbol) return;
+        const symbol = row.dataset.symbol;
+        if (symbol === tooltipHoverSymbol) return;
+        tooltipHoverSymbol = symbol;
+
+        clearTimeout(tooltipTimer);
+        tooltipTimer = setTimeout(() => showTooltip(symbol, row), 350);
+    }});
+
+    tbody.addEventListener('mousemove', e => {{
+        if (tip.classList.contains('visible')) positionTooltip(e);
+    }});
+
+    tbody.addEventListener('mouseout', e => {{
+        const row = e.target.closest('tr');
+        if (!row) return;
+        // Only hide if leaving the table row (not entering child element)
+        const next = e.relatedTarget && e.relatedTarget.closest('tr');
+        if (next && next.dataset.symbol === tooltipHoverSymbol) return;
+        clearTimeout(tooltipTimer);
+        tooltipHoverSymbol = null;
+        hideTooltip();
+    }});
+
+    // Hide tooltip on scroll
+    window.addEventListener('scroll', () => {{
+        clearTimeout(tooltipTimer);
+        tooltipHoverSymbol = null;
+        hideTooltip();
+    }}, true);
+}}
+
+function positionTooltip(e) {{
+    const tip = document.getElementById('stock-tooltip');
+    const offsetX = 14, offsetY = 14;
+    const tipRect = tip.getBoundingClientRect();
+    let left = e.clientX + offsetX;
+    let top = e.clientY + offsetY;
+    // Flip if off-screen right/bottom
+    if (left + tipRect.width > window.innerWidth - 8) left = e.clientX - tipRect.width - offsetX;
+    if (top + tipRect.height > window.innerHeight - 8) top = e.clientY - tipRect.height - offsetY;
+    if (left < 4) left = 4;
+    if (top < 4) top = 4;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+}}
+
+function showTooltip(symbol, row) {{
+    const tip = document.getElementById('stock-tooltip');
+    if (!tip) return;
+    const stock = ALL_STOCKS.find(s => s.symbol === symbol);
+    if (!stock) return;
+    const sym = symbol.replace('.NS','').replace('.BO','');
+
+    // Build header always
+    const tags = [stock.sector, stock.market_cap_cat, stock.industry, stock.exchange]
+        .filter(t => t && t !== 'Unknown');
+    const tagsHtml = tags.map(t => `<span class="tip-tag">${{t}}</span>`).join('');
+
+    const headerHtml = `
+        <div class="tip-header">${{sym}}</div>
+        <div class="tip-subtitle" style="color:var(--text-primary);font-size:12px;margin-bottom:6px;">${{stock.name || sym}}</div>
+        <div class="tip-subtitle">${{tagsHtml}}</div>
+    `;
+
+    // If cached, show full
+    if (tooltipCache[symbol] !== undefined) {{
+        const summary = tooltipCache[symbol] || 'No description available.';
+        tip.innerHTML = headerHtml + `<div class="tip-body">${{summary}}</div>`;
+    }} else {{
+        // Show header + loading state, then fetch
+        tip.innerHTML = headerHtml + `<div class="tip-body tip-loading">Loading description...</div>`;
+        fetchTooltipData(symbol);
+    }}
+    tip.classList.add('visible');
+
+    // Position relative to row initially
+    const rect = row.getBoundingClientRect();
+    const fakeEvent = {{ clientX: rect.right - 50, clientY: rect.top + rect.height / 2 }};
+    positionTooltip(fakeEvent);
+}}
+
+function hideTooltip() {{
+    const tip = document.getElementById('stock-tooltip');
+    if (tip) tip.classList.remove('visible');
+}}
+
+function fetchTooltipData(symbol) {{
+    const safeName = symbol.replace(/\\./g, '_');
+    const url = 'data/' + safeName + '.json';
+    let altUrl = null;
+    if (symbol.endsWith('.BO')) altUrl = 'data/' + symbol.replace('.BO', '.NS').replace(/\\./g, '_') + '.json';
+    else if (symbol.endsWith('.NS')) altUrl = 'data/' + symbol.replace('.NS', '.BO').replace(/\\./g, '_') + '.json';
+
+    fetch(url)
+        .then(r => r.ok ? r : (altUrl ? fetch(altUrl) : Promise.reject('no data')))
+        .then(r => r.ok ? r.json() : Promise.reject('not found'))
+        .then(fileData => {{
+            const fund = Array.isArray(fileData) ? {{}} : (fileData.fundamentals || {{}});
+            let summary = fund.long_business_summary || '';
+            // Trim to a reasonable length
+            if (summary.length > 500) summary = summary.substring(0, 500).trim() + '...';
+            if (!summary) summary = 'No description available for this stock.';
+            tooltipCache[symbol] = summary;
+            // If user is still hovering this symbol, update tooltip
+            if (tooltipHoverSymbol === symbol) {{
+                const tip = document.getElementById('stock-tooltip');
+                const body = tip.querySelector('.tip-body');
+                if (body) {{
+                    body.classList.remove('tip-loading');
+                    body.textContent = summary;
+                }}
+            }}
+        }})
+        .catch(() => {{
+            tooltipCache[symbol] = '';
+            if (tooltipHoverSymbol === symbol) {{
+                const body = document.querySelector('#stock-tooltip .tip-body');
+                if (body) {{
+                    body.classList.remove('tip-loading');
+                    body.textContent = 'No description available for this stock.';
+                }}
+            }}
+        }});
 }}
 
 // ==========================================
