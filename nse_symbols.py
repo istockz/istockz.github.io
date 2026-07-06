@@ -186,37 +186,50 @@ def _cache_is_fresh(max_age_days: int = 7) -> bool:
     return (datetime.now() - mtime) < timedelta(days=max_age_days)
 
 
-def get_all_symbols(force_refresh: bool = False) -> list[dict]:
+def get_all_symbols(force_refresh: bool = False, include_us: bool = True) -> list[dict]:
     """
-    Get all Indian stock symbols (NSE + BSE combined).
-    Returns list of dicts: [{"symbol", "name", "exchange", "yf_symbol"}, ...]
+    Get all stock symbols. India (NSE + BSE) by default; US stocks appended when include_us=True.
+    Returns list of dicts: [{"symbol", "name", "exchange", "yf_symbol", "market"}, ...]
+
+    - "market" is "IN" for Indian stocks, "US" for American stocks (derived).
     """
     if not force_refresh and _cache_is_fresh():
         stocks = _load_cache()
         print(f"[SYMBOLS] Using cached list ({len(stocks)} stocks)")
-        return stocks
+    else:
+        print("[SYMBOLS] Refreshing stock list from NSE + BSE...")
+        nse = _download_nse_list()
+        bse = _download_bse_list()
 
-    print("[SYMBOLS] Refreshing stock list from NSE + BSE...")
-    nse = _download_nse_list()
-    bse = _download_bse_list()
+        if nse or bse:
+            stocks = _merge_lists(nse, bse)
+            _save_cache(stocks)
+        else:
+            # Fallback to cache even if stale
+            stocks = _load_cache()
+            if stocks:
+                print(f"[SYMBOLS] Using stale cache ({len(stocks)} stocks)")
+            else:
+                print("[SYMBOLS] No source available. Using stocks.txt.")
+                from fetch_data import load_symbols
+                syms = load_symbols()
+                stocks = [{"symbol": s.replace(".NS", ""), "name": s.replace(".NS", ""),
+                          "exchange": "NSE", "yf_symbol": s} for s in syms]
 
-    if nse or bse:
-        merged = _merge_lists(nse, bse)
-        _save_cache(merged)
-        return merged
+    # Tag Indian stocks
+    for s in stocks:
+        s.setdefault("market", "IN")
 
-    # Fallback to cache even if stale
-    stocks = _load_cache()
-    if stocks:
-        print(f"[SYMBOLS] Using stale cache ({len(stocks)} stocks)")
-        return stocks
+    if include_us:
+        from us_symbols import get_us_symbols
+        us_stocks = get_us_symbols(force_refresh=force_refresh)
+        # Tag US market
+        for s in us_stocks:
+            s["market"] = "US"
+        stocks = stocks + us_stocks
+        print(f"[SYMBOLS] Combined: {len(stocks) - len(us_stocks)} IN + {len(us_stocks)} US")
 
-    # Last resort: stocks.txt
-    print("[SYMBOLS] No source available. Using stocks.txt.")
-    from fetch_data import load_symbols
-    syms = load_symbols()
-    return [{"symbol": s.replace(".NS", ""), "name": s.replace(".NS", ""),
-             "exchange": "NSE", "yf_symbol": s} for s in syms]
+    return stocks
 
 
 # Backward-compatible aliases
@@ -237,6 +250,12 @@ def get_symbol_name_map(force_refresh: bool = False) -> dict[str, str]:
 
 
 def get_symbol_exchange_map(force_refresh: bool = False) -> dict[str, str]:
-    """Get a mapping of yf_symbol -> Exchange (NSE, BSE, NSE+BSE)."""
+    """Get a mapping of yf_symbol -> Exchange (NSE, BSE, NSE+BSE, NYSE, NASDAQ)."""
     stocks = get_all_symbols(force_refresh)
     return {s["yf_symbol"]: s["exchange"] for s in stocks}
+
+
+def get_symbol_market_map(force_refresh: bool = False) -> dict[str, str]:
+    """Get a mapping of yf_symbol -> Market (IN or US)."""
+    stocks = get_all_symbols(force_refresh)
+    return {s["yf_symbol"]: s.get("market", "IN") for s in stocks}
