@@ -51,8 +51,15 @@ def generate_chart_data():
         "long_business_summary",
     ]
 
+    _WIN_RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
+        f"COM{i}" for i in range(1, 10)
+    } | {f"LPT{i}" for i in range(1, 10)}
+
     def write_stock_file(symbol, ohlcv_data):
         safe_name = symbol.replace(".", "_")
+        # Skip Windows-reserved device names — they can't exist as filenames
+        if safe_name.upper().split("_")[0] in _WIN_RESERVED:
+            return
         filepath = os.path.join(DATA_DIR, f"{safe_name}.json")
         # Build output: { "ohlcv": [...], "fundamentals": {...} }
         fund = fund_map.get(symbol, {})

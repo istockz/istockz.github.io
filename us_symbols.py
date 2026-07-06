@@ -1,12 +1,13 @@
 """
-US stock symbols — S&P 500 + NASDAQ 100 combined.
-Downloads the S&P 500 list from Wikipedia and NASDAQ 100 constituents,
-caches them locally, and returns the merged list.
+US stock symbols — full NYSE + NASDAQ listing via NASDAQ's screener API.
+Falls back to a curated 308-stock list if the API is unreachable.
 
 For yfinance, US tickers have NO suffix (e.g. AAPL, MSFT, GOOGL).
 """
 import os
 import csv
+import json
+import urllib.request
 from datetime import datetime, timedelta
 from config import BASE_DIR
 
@@ -366,9 +367,86 @@ def _cache_is_fresh(max_age_days: int = 30) -> bool:
     return (datetime.now() - mtime) < timedelta(days=max_age_days)
 
 
+def _fetch_full_us_listing() -> list[dict]:
+    """
+    Fetch the full US stock listing from NASDAQ's screener API.
+    Covers all NYSE + NASDAQ + AMEX listed stocks (~7000).
+
+    We split by exchange based on standard NASDAQ tickers convention:
+    - Common stock listed on NASDAQ vs other exchanges is determined
+      by NASDAQ's own screener metadata; here we tag exchange as
+      "NASDAQ" or "NYSE" as best guess from the API's data.
+    """
+    stocks = []
+    # NASDAQ screener API endpoints (public, no auth needed)
+    api_endpoints = [
+        # NASDAQ-listed
+        ("https://api.nasdaq.com/api/screener/stocks"
+         "?tableonly=true&limit=25&exchange=NASDAQ&download=true", "NASDAQ"),
+        # NYSE-listed
+        ("https://api.nasdaq.com/api/screener/stocks"
+         "?tableonly=true&limit=25&exchange=NYSE&download=true", "NYSE"),
+        # AMEX (small cap)
+        ("https://api.nasdaq.com/api/screener/stocks"
+         "?tableonly=true&limit=25&exchange=AMEX&download=true", "NYSE"),
+    ]
+
+    for url, exchange_tag in api_endpoints:
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read())
+                rows = data.get("data", {}).get("rows", []) or []
+                print(f"  [{exchange_tag}] Got {len(rows)} stocks")
+                for row in rows:
+                    symbol = (row.get("symbol") or "").strip()
+                    if not symbol:
+                        continue
+                    # Skip warrants, units, preferred etc. (contain ^, /, .W, etc.)
+                    if any(c in symbol for c in ["^", "/", " "]):
+                        continue
+                    # Skip Windows-reserved device names — they can't
+                    # be filenames on the site (data/<sym>.json)
+                    _RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
+                        f"COM{i}" for i in range(1, 10)
+                    } | {f"LPT{i}" for i in range(1, 10)}
+                    if symbol.upper() in _RESERVED:
+                        continue
+                    if symbol.endswith(("W", "R", "U")) and len(symbol) > 4:
+                        # heuristic — sometimes these are warrants/rights/units
+                        # keep but flag by not filtering hard
+                        pass
+                    name = (row.get("name") or symbol).replace(
+                        " Common Stock", ""
+                    ).replace(" Class A Common Stock", " Class A").strip()
+                    stocks.append({
+                        "symbol": symbol,
+                        "name": name,
+                        "exchange": exchange_tag,
+                        "yf_symbol": symbol,
+                    })
+        except Exception as e:
+            print(f"  [{exchange_tag}] Fetch failed: {e}")
+
+    # Deduplicate by symbol
+    seen = {}
+    for s in stocks:
+        if s["symbol"] not in seen:
+            seen[s["symbol"]] = s
+    result = sorted(seen.values(), key=lambda x: x["symbol"])
+    print(f"[US SYMBOLS] Fetched {len(result)} unique tickers "
+          f"from NASDAQ+NYSE+AMEX")
+    return result
+
+
 def get_us_symbols(force_refresh: bool = False) -> list[dict]:
     """
-    Get US stock symbols (S&P 500 + NASDAQ 100 top names + top ETFs).
+    Get US stock symbols. First tries NASDAQ's screener API for full
+    NYSE+NASDAQ+AMEX listing (~7000 stocks). Falls back to a curated
+    308-stock list if the API is unreachable.
+
     Returns list of dicts: [{"symbol", "name", "exchange", "yf_symbol"}, ...]
     """
     if not force_refresh and _cache_is_fresh():
@@ -376,19 +454,25 @@ def get_us_symbols(force_refresh: bool = False) -> list[dict]:
         print(f"[US SYMBOLS] Using cached list ({len(stocks)} stocks)")
         return stocks
 
-    # Build from curated fallback list (reliable, no external dependency)
+    # Try live fetch first
+    print("[US SYMBOLS] Refreshing US stock list from NASDAQ API...")
+    live = _fetch_full_us_listing()
+    if len(live) >= 500:   # sanity check
+        _save_cache(live)
+        return live
+
+    # Fallback to curated list
+    print("[US SYMBOLS] API unavailable, using curated fallback list")
     stocks = [
         {
             "symbol": ticker,
             "name": name,
             "exchange": exch,
-            "yf_symbol": ticker,  # US tickers have no suffix in yfinance
+            "yf_symbol": ticker,
         }
         for ticker, name, exch in US_FALLBACK
     ]
-
     _save_cache(stocks)
-    print(f"[US SYMBOLS] Built list with {len(stocks)} US stocks")
     return stocks
 
 
