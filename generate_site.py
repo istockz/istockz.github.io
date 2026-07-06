@@ -1644,7 +1644,8 @@ const INDEX_GROUPS = {{
 // ==========================================
 // STATE
 // ==========================================
-let navFilterActive = null;  // Current nav group filter
+let navFilterActive = null;  // Current nav group filter (cap/sector/group/index)
+let navMarketActive = null;  // Current market filter ('IN' | 'US' | null)
 let globalFiltered = [...ALL_STOCKS];   // After sector/cap/exchange dropdown
 let filteredData   = [...ALL_STOCKS];   // After search + price filter too
 let currentPage = 1;
@@ -1725,24 +1726,39 @@ function closeNavMenu() {{
 }}
 
 function buildNavMenu() {{
-    // Count stocks per group
+    // Market-aware count: only consider stocks matching the active market
+    function matchesMarket(s) {{
+        return !navMarketActive || (s.market || 'IN') === navMarketActive;
+    }}
     function countMatch(filterFn) {{
-        return ALL_STOCKS.filter(filterFn).length;
+        return ALL_STOCKS.filter(s => matchesMarket(s) && filterFn(s)).length;
     }}
     function symClean(s) {{ return s.symbol.replace('.NS','').replace('.BO',''); }}
+    function clearSection(section) {{
+        Array.from(section.querySelectorAll('.nav-item')).forEach(el => el.remove());
+    }}
+    function toggleSection(section, hasItems) {{
+        section.style.display = hasItems ? '' : 'none';
+    }}
 
-    // All stocks count
-    document.getElementById('nav-count-all').textContent = ALL_STOCKS.length;
+    // All stocks count reflects the active market filter
+    const totalCount = navMarketActive
+        ? ALL_STOCKS.filter(matchesMarket).length
+        : ALL_STOCKS.length;
+    document.getElementById('nav-count-all').textContent = totalCount;
 
-    // Market/Country section
+    // Market/Country section — counts are absolute (not gated by market filter)
     const mktSection = document.getElementById('nav-market-section');
+    clearSection(mktSection);
+    let mktCount = 0;
     const markets = [
         {{key: 'IN', label: 'India (NSE + BSE)', flag: '🇮🇳'}},
         {{key: 'US', label: 'United States', flag: '🇺🇸'}},
     ];
     markets.forEach(m => {{
-        const count = countMatch(s => (s.market || 'IN') === m.key);
+        const count = ALL_STOCKS.filter(s => (s.market || 'IN') === m.key).length;
         if (count === 0) return;
+        mktCount++;
         const div = document.createElement('div');
         div.className = 'nav-item';
         div.setAttribute('data-filter', 'market:' + m.key);
@@ -1750,13 +1766,17 @@ function buildNavMenu() {{
         div.onclick = () => applyNavFilter('market:' + m.key);
         mktSection.appendChild(div);
     }});
+    toggleSection(mktSection, mktCount > 0);
 
-    // Market Cap section
+    // Market Cap section (market-scoped counts)
     const capSection = document.getElementById('nav-cap-section');
+    clearSection(capSection);
+    let capCount = 0;
     const capIcons = {{ 'Large Cap': '\u25c9', 'Mid Cap': '\u25ce', 'Small Cap': '\u25cb', 'Micro Cap': '\u00b7' }};
     CAPS_LIST.forEach(cap => {{
         const count = countMatch(s => s.market_cap_cat === cap);
         if (count === 0) return;
+        capCount++;
         const div = document.createElement('div');
         div.className = 'nav-item';
         div.setAttribute('data-filter', 'cap:' + cap);
@@ -1764,13 +1784,17 @@ function buildNavMenu() {{
         div.onclick = () => applyNavFilter('cap:' + cap);
         capSection.appendChild(div);
     }});
+    toggleSection(capSection, capCount > 0);
 
-    // Sectors section
+    // Sectors section (market-scoped counts)
     const secSection = document.getElementById('nav-sector-section');
+    clearSection(secSection);
+    let secCount = 0;
     const secIcons = {{}};
     SECTORS_LIST.forEach(sec => {{
         const count = countMatch(s => s.sector === sec);
         if (count === 0) return;
+        secCount++;
         const div = document.createElement('div');
         div.className = 'nav-item';
         div.setAttribute('data-filter', 'sector:' + sec);
@@ -1778,13 +1802,17 @@ function buildNavMenu() {{
         div.onclick = () => applyNavFilter('sector:' + sec);
         secSection.appendChild(div);
     }});
+    toggleSection(secSection, secCount > 0);
 
-    // Business Groups section
+    // Business Groups section (all groups are Indian today; hidden when US selected)
     const grpSection = document.getElementById('nav-group-section');
+    clearSection(grpSection);
+    let grpCount = 0;
     Object.keys(BUSINESS_GROUPS).sort().forEach(grp => {{
         const symbols = BUSINESS_GROUPS[grp];
         const count = countMatch(s => symbols.includes(symClean(s)));
         if (count === 0) return;
+        grpCount++;
         const div = document.createElement('div');
         div.className = 'nav-item';
         div.setAttribute('data-filter', 'group:' + grp);
@@ -1792,13 +1820,17 @@ function buildNavMenu() {{
         div.onclick = () => applyNavFilter('group:' + grp);
         grpSection.appendChild(div);
     }});
+    toggleSection(grpSection, grpCount > 0);
 
-    // Index Groups section
+    // Index Groups section (market-scoped)
     const idxSection = document.getElementById('nav-index-section');
+    clearSection(idxSection);
+    let idxCount = 0;
     Object.keys(INDEX_GROUPS).forEach(idx => {{
         const symbols = INDEX_GROUPS[idx];
         const count = countMatch(s => symbols.includes(symClean(s)));
         if (count === 0) return;
+        idxCount++;
         const div = document.createElement('div');
         div.className = 'nav-item';
         div.setAttribute('data-filter', 'index:' + idx);
@@ -1806,21 +1838,61 @@ function buildNavMenu() {{
         div.onclick = () => applyNavFilter('index:' + idx);
         idxSection.appendChild(div);
     }});
+    toggleSection(idxSection, idxCount > 0);
+
+    // Re-apply .active state to survive rebuilds
+    if (navMarketActive) {{
+        const el = document.querySelector(`.nav-item[data-filter="market:${{navMarketActive}}"]`);
+        if (el) el.classList.add('active');
+    }}
+    if (navFilterActive && navFilterActive !== 'all') {{
+        const el = document.querySelector(`.nav-item[data-filter="${{navFilterActive}}"]`);
+        if (el) el.classList.add('active');
+    }}
+    if (!navMarketActive && !navFilterActive) {{
+        const allEl = document.querySelector('.nav-item-all');
+        if (allEl) allEl.classList.add('active');
+    }}
 }}
 
 function applyNavFilter(filter) {{
-    navFilterActive = filter;
-
-    // Update active state in nav
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    // Split behavior: market filter vs. everything else (cap/sector/group/index)
     if (filter === 'all') {{
-        document.querySelector('.nav-item-all').classList.add('active');
+        // "All Stocks" clears BOTH market and category filters
+        navMarketActive = null;
+        navFilterActive = null;
+    }} else if (filter.startsWith('market:')) {{
+        const mkt = filter.replace('market:', '');
+        // Toggle: clicking the same market again clears it
+        navMarketActive = (navMarketActive === mkt) ? null : mkt;
+        // If the picked category is no longer relevant for this market, drop it
+        if (navFilterActive) {{
+            const stillValid = ALL_STOCKS.some(s => {{
+                if (navMarketActive && (s.market || 'IN') !== navMarketActive) return false;
+                const f = navFilterActive;
+                if (f.startsWith('cap:')) return s.market_cap_cat === f.replace('cap:', '');
+                if (f.startsWith('sector:')) return s.sector === f.replace('sector:', '');
+                if (f.startsWith('group:')) {{
+                    const syms = BUSINESS_GROUPS[f.replace('group:', '')] || [];
+                    return syms.includes(s.symbol.replace('.NS','').replace('.BO',''));
+                }}
+                if (f.startsWith('index:')) {{
+                    const syms = INDEX_GROUPS[f.replace('index:', '')] || [];
+                    return syms.includes(s.symbol.replace('.NS','').replace('.BO',''));
+                }}
+                return true;
+            }});
+            if (!stillValid) navFilterActive = null;
+        }}
     }} else {{
-        const target = document.querySelector(`.nav-item[data-filter="${{filter}}"]`);
-        if (target) target.classList.add('active');
+        // cap: / sector: / group: / index:
+        navFilterActive = filter;
     }}
 
-    // Reset dropdown filters when changing nav group
+    // Rebuild the nav so counts refresh and irrelevant sections collapse
+    buildNavMenu();
+
+    // Reset dropdown filters when changing nav selection
     document.getElementById('filter-sector').value = 'all';
     document.getElementById('filter-cap').value = 'all';
     document.getElementById('filter-exchange').value = 'all';
@@ -1851,8 +1923,11 @@ function resetFilters() {{
     priceFilter = 'all';
     activeSector = 'all'; activeCap = 'all'; activeExchange = 'all';
     navFilterActive = null;
+    navMarketActive = null;
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.querySelector('.nav-item-all').classList.add('active');
+    // Rebuild nav so hidden sections come back
+    buildNavMenu();
     ['btn-all','btn-gainers','btn-losers','btn-volume','btn-value'].forEach(id => document.getElementById(id).classList.remove('active'));
     document.getElementById('btn-all').classList.add('active');
     currentPage = 1;
@@ -1860,30 +1935,31 @@ function resetFilters() {{
 }}
 
 function applyGlobalFilter() {{
-    // Step 0: apply nav menu group filter first
+    // Step 0a: apply nav market filter (composes with the category filter below)
     let base = ALL_STOCKS;
+    if (navMarketActive) {{
+        base = base.filter(s => (s.market || 'IN') === navMarketActive);
+    }}
+    // Step 0b: apply nav menu category filter (cap/sector/group/index)
     if (navFilterActive && navFilterActive !== 'all') {{
         const f = navFilterActive;
-        if (f.startsWith('market:')) {{
-            const mkt = f.replace('market:','');
-            base = ALL_STOCKS.filter(s => (s.market || 'IN') === mkt);
-        }} else if (f.startsWith('cap:')) {{
+        if (f.startsWith('cap:')) {{
             const cap = f.replace('cap:','');
-            base = ALL_STOCKS.filter(s => s.market_cap_cat === cap);
+            base = base.filter(s => s.market_cap_cat === cap);
         }} else if (f.startsWith('sector:')) {{
             const sec = f.replace('sector:','');
-            base = ALL_STOCKS.filter(s => s.sector === sec);
+            base = base.filter(s => s.sector === sec);
         }} else if (f.startsWith('group:')) {{
             const grp = f.replace('group:','');
             const symbols = BUSINESS_GROUPS[grp] || [];
-            base = ALL_STOCKS.filter(s => {{
+            base = base.filter(s => {{
                 const sym = s.symbol.replace('.NS','').replace('.BO','');
                 return symbols.includes(sym);
             }});
         }} else if (f.startsWith('index:')) {{
             const idx = f.replace('index:','');
             const symbols = INDEX_GROUPS[idx] || [];
-            base = ALL_STOCKS.filter(s => {{
+            base = base.filter(s => {{
                 const sym = s.symbol.replace('.NS','').replace('.BO','');
                 return symbols.includes(sym);
             }});
@@ -1900,10 +1976,12 @@ function applyGlobalFilter() {{
 
     // Update active tag
     const parts = [];
+    if (navMarketActive) {{
+        parts.push(navMarketActive === 'US' ? 'United States' : 'India');
+    }}
     if (navFilterActive && navFilterActive !== 'all') {{
         const f = navFilterActive;
-        if (f.startsWith('market:')) parts.push(f.replace('market:','') === 'US' ? 'United States' : 'India');
-        else if (f.startsWith('cap:')) parts.push(f.replace('cap:',''));
+        if (f.startsWith('cap:')) parts.push(f.replace('cap:',''));
         else if (f.startsWith('sector:')) parts.push(f.replace('sector:',''));
         else if (f.startsWith('group:')) parts.push(f.replace('group:',''));
         else if (f.startsWith('index:')) parts.push(f.replace('index:',''));
