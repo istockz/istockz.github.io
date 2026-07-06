@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 from config import SITE_OUTPUT, DATA_DIR
 from db import get_latest_prices, get_stock_count, get_stock_info_map, get_all_fundamentals_map
-from nse_symbols import get_symbol_name_map, get_symbol_exchange_map
+from nse_symbols import get_symbol_name_map, get_symbol_exchange_map, get_symbol_market_map
 
 
 def generate_chart_data():
@@ -104,11 +104,18 @@ def generate_website():
     # Enrich with company names, exchange, and sector info
     name_map = get_symbol_name_map()
     exchange_map = get_symbol_exchange_map()
+    market_map = get_symbol_market_map()
     info_map = get_stock_info_map()
 
     # Collect unique sectors and market cap categories
     sectors = set()
     caps = set()
+
+    def _detect_market(sym: str) -> str:
+        """Fallback market detection when not in map: .NS/.BO -> IN, else US."""
+        if sym.endswith(".NS") or sym.endswith(".BO"):
+            return "IN"
+        return "US"
 
     for row in prices:
         row["name"] = name_map.get(
@@ -119,6 +126,7 @@ def generate_website():
             row["symbol"],
             "BSE" if row["symbol"].endswith(".BO") else "NSE",
         )
+        row["market"] = market_map.get(row["symbol"], _detect_market(row["symbol"]))
         si = info_map.get(row["symbol"], {})
         row["sector"] = si.get("sector", "Unknown")
         row["industry"] = si.get("industry", "Unknown")
@@ -1272,6 +1280,9 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
             <span style="font-size:11px;color:#8b949e;">India + Global</span>
         </div>
     </div>
+    <div class="nav-section" id="nav-market-section">
+        <div class="nav-section-title">Market / Country</div>
+    </div>
     <div class="nav-section" id="nav-cap-section">
         <div class="nav-section-title">Market Cap</div>
     </div>
@@ -1714,6 +1725,23 @@ function buildNavMenu() {{
     // All stocks count
     document.getElementById('nav-count-all').textContent = ALL_STOCKS.length;
 
+    // Market/Country section
+    const mktSection = document.getElementById('nav-market-section');
+    const markets = [
+        {{key: 'IN', label: 'India (NSE + BSE)', flag: '🇮🇳'}},
+        {{key: 'US', label: 'United States', flag: '🇺🇸'}},
+    ];
+    markets.forEach(m => {{
+        const count = countMatch(s => (s.market || 'IN') === m.key);
+        if (count === 0) return;
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.setAttribute('data-filter', 'market:' + m.key);
+        div.innerHTML = `<span>${{m.flag}}  ${{m.label}}</span><span class="nav-count">${{count}}</span>`;
+        div.onclick = () => applyNavFilter('market:' + m.key);
+        mktSection.appendChild(div);
+    }});
+
     // Market Cap section
     const capSection = document.getElementById('nav-cap-section');
     const capIcons = {{ 'Large Cap': '\u25c9', 'Mid Cap': '\u25ce', 'Small Cap': '\u25cb', 'Micro Cap': '\u00b7' }};
@@ -1827,7 +1855,10 @@ function applyGlobalFilter() {{
     let base = ALL_STOCKS;
     if (navFilterActive && navFilterActive !== 'all') {{
         const f = navFilterActive;
-        if (f.startsWith('cap:')) {{
+        if (f.startsWith('market:')) {{
+            const mkt = f.replace('market:','');
+            base = ALL_STOCKS.filter(s => (s.market || 'IN') === mkt);
+        }} else if (f.startsWith('cap:')) {{
             const cap = f.replace('cap:','');
             base = ALL_STOCKS.filter(s => s.market_cap_cat === cap);
         }} else if (f.startsWith('sector:')) {{
@@ -1862,7 +1893,8 @@ function applyGlobalFilter() {{
     const parts = [];
     if (navFilterActive && navFilterActive !== 'all') {{
         const f = navFilterActive;
-        if (f.startsWith('cap:')) parts.push(f.replace('cap:',''));
+        if (f.startsWith('market:')) parts.push(f.replace('market:','') === 'US' ? 'United States' : 'India');
+        else if (f.startsWith('cap:')) parts.push(f.replace('cap:',''));
         else if (f.startsWith('sector:')) parts.push(f.replace('sector:',''));
         else if (f.startsWith('group:')) parts.push(f.replace('group:',''));
         else if (f.startsWith('index:')) parts.push(f.replace('index:',''));
@@ -2693,8 +2725,16 @@ function openFsStockPanel(symbol) {{
         }});
 }}
 
-function fmtCr(val) {{
+function fmtCr(val, market) {{
     if (val == null) return '-';
+    if (market === 'US') {{
+        // Show US amounts in Billions (B) or Millions (M)
+        const absv = Math.abs(val);
+        if (absv >= 1e9) return (val / 1e9).toFixed(2) + 'B';
+        if (absv >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+        if (absv >= 1e3) return (val / 1e3).toFixed(2) + 'K';
+        return val.toFixed(2);
+    }}
     const cr = val / 1e7;
     if (cr >= 100) return cr.toFixed(0).replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ',') + ' Cr';
     return cr.toFixed(2) + ' Cr';
@@ -2709,6 +2749,12 @@ function fmtNum(val, dec) {{
 }}
 
 function renderFundamentals(fund, stock) {{
+    // Currency symbol: $ for US stocks, ₹ for Indian
+    const MKT = (stock && stock.market === 'US') ? 'US' : 'IN';
+    const CUR = MKT === 'US' ? '$' : '&#8377;';
+    // Wrapper: pass market to fmtCr
+    const money = (v) => fmtCr(v, MKT);
+
     // Helper to build a card
     function card(title, rows) {{
         const validRows = rows.filter(r => r[1] !== '-' && r[1] != null);
@@ -2745,9 +2791,9 @@ function renderFundamentals(fund, stock) {{
         ['P/E (TTM)', fmtNum(fund.trailing_pe), '', true],
         ['P/E (Fwd)', fmtNum(fund.forward_pe)],
         ['P/B Ratio', fmtNum(fund.price_to_book)],
-        ['EPS (TTM)', '₹' + fmtNum(fund.eps_trailing), 'blue'],
-        ['EPS (Fwd)', '₹' + fmtNum(fund.eps_forward)],
-        ['Book Value', '₹' + fmtNum(fund.book_value)],
+        ['EPS (TTM)', CUR + fmtNum(fund.eps_trailing), 'blue'],
+        ['EPS (Fwd)', CUR + fmtNum(fund.eps_forward)],
+        ['Book Value', CUR + fmtNum(fund.book_value)],
     ]);
 
     html += card('MARGINS', [
@@ -2759,25 +2805,25 @@ function renderFundamentals(fund, stock) {{
     ]);
 
     html += card('INCOME', [
-        ['Revenue', fund.revenue ? fmtCr(fund.revenue) : '-', 'blue', true],
+        ['Revenue', fund.revenue ? money(fund.revenue) : '-', 'blue', true],
         ['Rev Growth', fund.revenue_growth != null ? fmtPct(fund.revenue_growth) : '-', pctCls(fund.revenue_growth), true],
-        ['EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : '-'],
-        ['Net Income', fund.net_income ? fmtCr(fund.net_income) : '-', fund.net_income > 0 ? 'green' : fund.net_income < 0 ? 'red' : ''],
+        ['EBITDA', fund.ebitda ? money(fund.ebitda) : '-'],
+        ['Net Income', fund.net_income ? money(fund.net_income) : '-', fund.net_income > 0 ? 'green' : fund.net_income < 0 ? 'red' : ''],
         ['Earn Growth', fund.earnings_growth != null ? fmtPct(fund.earnings_growth) : '-', pctCls(fund.earnings_growth)],
     ]);
 
     // Row 2: Balance Sheet | Dividends | Holdings
     html += card('BALANCE SHEET', [
-        ['Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : '-', fund.total_debt > 0 ? 'red' : ''],
-        ['Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : '-', 'green'],
+        ['Total Debt', fund.total_debt ? money(fund.total_debt) : '-', fund.total_debt > 0 ? 'red' : ''],
+        ['Total Cash', fund.total_cash ? money(fund.total_cash) : '-', 'green'],
         ['Debt/Equity', fmtNum(fund.debt_to_equity), '', true],
         ['Current Ratio', fmtNum(fund.current_ratio)],
-        ['Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : '-', fund.free_cashflow > 0 ? 'green' : 'red'],
+        ['Free Cash Flow', fund.free_cashflow ? money(fund.free_cashflow) : '-', fund.free_cashflow > 0 ? 'green' : 'red'],
     ]);
 
     html += card('DIVIDENDS', [
         ['Div Yield', fund.dividend_yield != null ? fmtPct(fund.dividend_yield) : '-', 'gold', true],
-        ['Div Rate', fund.dividend_rate != null ? '₹' + fmtNum(fund.dividend_rate) : '-'],
+        ['Div Rate', fund.dividend_rate != null ? CUR + fmtNum(fund.dividend_rate) : '-'],
         ['Payout Ratio', fund.payout_ratio != null ? fmtPct(fund.payout_ratio) : '-'],
         ['5Y Avg Yield', fund.five_yr_avg_div_yield != null ? fmtNum(fund.five_yr_avg_div_yield) + '%' : '-'],
     ]);
@@ -2785,8 +2831,8 @@ function renderFundamentals(fund, stock) {{
     html += card('HOLDINGS', [
         ['Insider Hold', fund.held_pct_insiders != null ? fmtPct(fund.held_pct_insiders) : '-', fund.held_pct_insiders > 0.5 ? 'green' : ''],
         ['Inst Hold', fund.held_pct_institutions != null ? fmtPct(fund.held_pct_institutions) : '-', 'blue'],
-        ['Shares Out', fund.shares_outstanding ? (fund.shares_outstanding / 1e7).toFixed(2) + ' Cr' : '-'],
-        ['Float Shares', fund.float_shares ? (fund.float_shares / 1e7).toFixed(2) + ' Cr' : '-'],
+        ['Shares Out', fund.shares_outstanding ? money(fund.shares_outstanding) : '-'],
+        ['Float Shares', fund.float_shares ? money(fund.float_shares) : '-'],
         ['Employees', fund.full_time_employees ? fund.full_time_employees.toLocaleString() : '-'],
     ]);
 
@@ -2800,13 +2846,13 @@ function renderFundamentals(fund, stock) {{
         html += `<div class="fund-card">
             <div class="fund-card-title">52 WEEK RANGE</div>
             <div class="range-bar-container">
-                <div class="range-current">₹${{current.toFixed(2)}}</div>
+                <div class="range-current">${{CUR}}${{current.toFixed(2)}}</div>
                 <div class="range-bar"><div class="range-dot" style="left:${{pct}}%"></div></div>
-                <div class="range-labels"><span>₹${{low.toFixed(2)}}</span><span>₹${{high.toFixed(2)}}</span></div>
+                <div class="range-labels"><span>${{CUR}}${{low.toFixed(2)}}</span><span>${{CUR}}${{high.toFixed(2)}}</span></div>
             </div>
             <div class="fund-card-body">
-                <div class="fund-row"><span class="f-label">50D Avg</span><span class="f-val">₹${{fmtNum(fund.fifty_day_average)}}</span></div>
-                <div class="fund-row"><span class="f-label">200D Avg</span><span class="f-val">₹${{fmtNum(fund.two_hundred_day_avg)}}</span></div>
+                <div class="fund-row"><span class="f-label">50D Avg</span><span class="f-val">${{CUR}}${{fmtNum(fund.fifty_day_average)}}</span></div>
+                <div class="fund-row"><span class="f-label">200D Avg</span><span class="f-val">${{CUR}}${{fmtNum(fund.two_hundred_day_avg)}}</span></div>
                 <div class="fund-row"><span class="f-label">Beta</span><span class="f-val">${{fmtNum(fund.beta)}}</span></div>
             </div>
         </div>`;
@@ -2820,9 +2866,9 @@ function renderFundamentals(fund, stock) {{
             <div class="fund-card-body">
                 ${{fund.recommendation ? `<div class="fund-row key-metric"><span class="f-label">Recommendation</span><span class="f-val">${{recBadge(fund.recommendation)}}</span></div>` : ''}}
                 ${{fund.num_analyst_opinions ? `<div class="fund-row"><span class="f-label">Analysts</span><span class="f-val blue">${{fund.num_analyst_opinions}}</span></div>` : ''}}
-                ${{fund.target_high_price ? `<div class="fund-row"><span class="f-label">Target High</span><span class="f-val green">₹${{fmtNum(fund.target_high_price)}}</span></div>` : ''}}
-                ${{fund.target_mean_price ? `<div class="fund-row"><span class="f-label">Target Mean</span><span class="f-val blue">₹${{fmtNum(fund.target_mean_price)}}</span></div>` : ''}}
-                ${{fund.target_low_price ? `<div class="fund-row"><span class="f-label">Target Low</span><span class="f-val red">₹${{fmtNum(fund.target_low_price)}}</span></div>` : ''}}
+                ${{fund.target_high_price ? `<div class="fund-row"><span class="f-label">Target High</span><span class="f-val green">${{CUR}}${{fmtNum(fund.target_high_price)}}</span></div>` : ''}}
+                ${{fund.target_mean_price ? `<div class="fund-row"><span class="f-label">Target Mean</span><span class="f-val blue">${{CUR}}${{fmtNum(fund.target_mean_price)}}</span></div>` : ''}}
+                ${{fund.target_low_price ? `<div class="fund-row"><span class="f-label">Target Low</span><span class="f-val red">${{CUR}}${{fmtNum(fund.target_low_price)}}</span></div>` : ''}}
             </div>
         </div>`;
     }}
@@ -3396,20 +3442,20 @@ function renderDetailFundamentals(fund, stock) {{
 
     // INCOME
     cards.push(buildCard('Income', [
-        cardRow('Revenue', fund.revenue ? fmtCr(fund.revenue) : null),
+        cardRow('Revenue', fund.revenue ? money(fund.revenue) : null),
         cardRow('Rev Growth', gv('revenue_growth') != null ? fmtPct(fund.revenue_growth) : null),
-        cardRow('EBITDA', fund.ebitda ? fmtCr(fund.ebitda) : null),
-        cardRow('Net Income', fund.net_income ? fmtCr(fund.net_income) : null),
+        cardRow('EBITDA', fund.ebitda ? money(fund.ebitda) : null),
+        cardRow('Net Income', fund.net_income ? money(fund.net_income) : null),
         cardRow('Earn Growth', gv('earnings_growth') != null ? fmtPct(fund.earnings_growth) : null),
     ]));
 
     // BALANCE SHEET
     cards.push(buildCard('Balance Sheet', [
-        cardRow('Total Debt', fund.total_debt ? fmtCr(fund.total_debt) : null),
-        cardRow('Total Cash', fund.total_cash ? fmtCr(fund.total_cash) : null),
+        cardRow('Total Debt', fund.total_debt ? money(fund.total_debt) : null),
+        cardRow('Total Cash', fund.total_cash ? money(fund.total_cash) : null),
         cardRow('Debt/Equity', fmtNum(fund.debt_to_equity)),
         cardRow('Current Ratio', fmtNum(fund.current_ratio)),
-        cardRow('Free Cash Flow', fund.free_cashflow ? fmtCr(fund.free_cashflow) : null),
+        cardRow('Free Cash Flow', fund.free_cashflow ? money(fund.free_cashflow) : null),
     ]));
 
     // DIVIDENDS
