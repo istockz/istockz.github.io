@@ -1420,8 +1420,10 @@ if(sessionStorage.getItem('_auth')==='1'){{document.getElementById('login-gate')
             <label>Exchange</label>
             <select class="filter-select" id="filter-exchange" onchange="onGlobalFilter()">
                 <option value="all">All Exchanges</option>
-                <option value="NSE">NSE</option>
-                <option value="BSE">BSE</option>
+                <option value="NSE">NSE (India)</option>
+                <option value="BSE">BSE (India)</option>
+                <option value="NYSE">NYSE (US)</option>
+                <option value="NASDAQ">NASDAQ (US)</option>
             </select>
         </div>
         <button class="filter-reset" id="reset-btn" onclick="resetFilters()">Reset All</button>
@@ -2099,10 +2101,13 @@ function rowHTML(s) {{
     const cls = s.change_pct >= 0 ? 'positive' : 'negative';
     const sign = s.change_pct >= 0 ? '+' : '';
     const sym = s.symbol.replace('.NS','').replace('.BO','');
-    const exchBadge = s.exchange === 'NSE+BSE'
-        ? '<span style="color:var(--blue)">NSE</span>+<span style="color:var(--orange)">BSE</span>'
-        : s.exchange === 'NSE' ? '<span style="color:var(--blue)">NSE</span>'
-        : '<span style="color:var(--orange)">BSE</span>';
+    let exchBadge;
+    if (s.exchange === 'NSE+BSE') exchBadge = '<span style="color:var(--blue)">NSE</span>+<span style="color:var(--orange)">BSE</span>';
+    else if (s.exchange === 'NSE') exchBadge = '<span style="color:var(--blue)">NSE</span>';
+    else if (s.exchange === 'BSE') exchBadge = '<span style="color:var(--orange)">BSE</span>';
+    else if (s.exchange === 'NYSE') exchBadge = '<span style="color:#26a641;font-weight:600">NYSE</span>';
+    else if (s.exchange === 'NASDAQ') exchBadge = '<span style="color:#c586ff;font-weight:600">NASDAQ</span>';
+    else exchBadge = `<span style="color:var(--text-muted)">${{s.exchange || '-'}}</span>`;
     const capCls = s.market_cap_cat === 'Large Cap' ? 'cap-large'
         : s.market_cap_cat === 'Mid Cap' ? 'cap-mid'
         : s.market_cap_cat === 'Small Cap' ? 'cap-small' : 'cap-micro';
